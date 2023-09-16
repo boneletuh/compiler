@@ -1,0 +1,9 @@
+Progamm:
+    | {Statement}
+    | "exit" Expresion ";"
+
+Statement:
+    | identifier "=" Expresion ";"
+
+Expresion:
+    | [number, identifier]
