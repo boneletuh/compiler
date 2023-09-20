@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
 //#include <stdarg.h>
 
@@ -42,11 +41,11 @@ char * file_contents(FILE * fptr) {
     error("can not allocate memory for the program source code");
   }
 
-  out[size] = '\0';
   for (int i = 0; i < size; i++) {
     out[i] = getc(fptr);
   }
-
+  out[size] = '\0';
+  
   fclose(fptr); 
   return out;
 }
@@ -114,7 +113,8 @@ Token * lexer(char * string) {
   int token_count = 0;
   Token * token_array = malloc(token_count * sizeof(Token));
   Token new_token;
-  for (int i = 0; string[i] != '\0'; i++) {
+  int i;
+  for (i = 0; string[i] != '\0'; i++) {
     switch (mode) {
       case searching_token:
         token_beginning = i;
@@ -217,7 +217,7 @@ Token * lexer(char * string) {
   // if theres still a token left add it to the token array
   if (mode != searching_token) {
     new_token.beginning = string + token_beginning;
-    new_token.length = (unsigned short) (strlen(string) - token_beginning);
+    new_token.length = (unsigned short) (i - token_beginning);
 
     // add token to token_array
     Token * new_token_array = realloc(token_array, sizeof(Token) * (token_count + 1));
