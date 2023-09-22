@@ -35,7 +35,7 @@ char * file_contents(FILE * fptr) {
   }
 
   int size = file_size(fptr);
-  char * out = (char*) malloc(size + 1);
+  char * out = (char *) malloc(size + 1);
   if (out == NULL) {
     error("can not allocate memory for the program source code");
   }
@@ -147,7 +147,9 @@ Token * lexer(char * string) {
         else if (!is_in_str(simbol, separ_sym)) {
           // FIX: use error()
           // FIX: at the end of the file it detects the -1 symbol idk why
-          printf("unkown type of symbol: %c  %hhu  %d\n", simbol, (unsigned char) string[i], i);
+          if (simbol != -1) {
+            printf("unkown type of symbol: %c  %hhu  %d\n", simbol, (unsigned char) string[i], i);
+          }
         }
         
         break;
@@ -192,9 +194,8 @@ Token * lexer(char * string) {
 
         token_array = new_token_array;
 
-        token_array[token_count].beginning = new_token.beginning;
-        token_array[token_count].length = new_token.length;
-        token_array[token_count].type = new_token.type;
+        token_array[token_count] = new_token;
+
         //this is unnecessary just to clean the new_token
         new_token.beginning = NULL;
         new_token.length = 0;
@@ -384,39 +385,28 @@ Node_Programm parser(Statement * statements) {
       // exit node
       if (compare_token_to_string(statement.statement_beginning[0], "exit")) {
         Token expresion = statement.statement_beginning[1];
-        if (expresion.type == Number || expresion.type == Identifier) {
-          if (expresion.type == Number) {
-            statement_num += 1;
-            Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
-            if (new_statements == NULL) {
-              error("can not allocate memory for new exit node with number branch");
-            }
-            new_statements[statement_num -1].statement_type = exit_node_type;
-            new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_number_type;
-            new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_number_value.number_token = expresion;
-
-            //result_tree.exit_node.exit_code.expresion_type = expresion_number_type;
-            //result_tree.exit_node.exit_code.expresion_value.expresion_number_value.number_token = expresion;
+        if (expresion.type == Number) {
+          statement_num += 1;
+          Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
+          if (new_statements == NULL) {
+            error("can not allocate memory for new exit node with number branch");
           }
-          else if (expresion.type == Identifier) {
-            statement_num += 1;
-            Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
-            if (new_statements == NULL) {
-              error("can not allocate memory for new exit node with identifier branch");
-            }
-            new_statements[statement_num -1].statement_type = exit_node_type;
-            new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_identifier_type;
-            new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_identifier_value = expresion;
-
-            //result_tree.exit_node.exit_code.expresion_type = expresion_identifier_type;
-            //result_tree.exit_node.exit_code.expresion_value.expresion_identifier_value = expresion;
+          new_statements[statement_num -1].statement_type = exit_node_type;
+          new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_number_type;
+          new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_number_value.number_token = expresion;
+        }
+        else if (expresion.type == Identifier) {
+          statement_num += 1;
+          Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
+          if (new_statements == NULL) {
+            error("can not allocate memory for new exit node with identifier branch");
           }
-          else {
-            error("unkown expresion type in exit");
-          }
+          new_statements[statement_num -1].statement_type = exit_node_type;
+          new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_identifier_type;
+          new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_identifier_value = expresion;
         }
         else {
-          error("not a valid type for exit");
+          error("invalid type for exit");
         }
       }
       else {
@@ -429,8 +419,8 @@ Node_Programm parser(Statement * statements) {
         if (compare_token_to_string(statement.statement_beginning[1], "=")) {
           Token var_name = statement.statement_beginning[0];
           Token expresion = statement.statement_beginning[2];
+          statement_num += 1;
           if (statement.statement_beginning[2].type == Number) {
-            statement_num += 1;
             Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
             if (new_statements == NULL) {
               error("can not allocate memory for new exit node with identifier branch");
@@ -439,13 +429,11 @@ Node_Programm parser(Statement * statements) {
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_type = expresion_number_type;
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_value.expresion_number_value.number_token = expresion;
             result_tree.statements_node = new_statements;
-
-            //var_value.expresion_type = expresion_number_type;
-            //var_value.expresion_value.expresion_number_value.number_token = statement.statement_beginning[2];
           }
           else if (statement.statement_beginning[2].type == Identifier) {
-            statement_num += 1;
             Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
+            // FIX: when there are atleast 63 statements, it cant allocate memory for the next "exit"s
+            // i have absolutely no idea why, and i dont care enough 
             if (new_statements == NULL) {
               error("can not allocate memory for new exit node with identifier branch");
             }
@@ -453,20 +441,10 @@ Node_Programm parser(Statement * statements) {
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_type = expresion_identifier_type;
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_value.expresion_identifier_value = expresion;
             result_tree.statements_node = new_statements;
-
-            //var_value.expresion_type = expresion_identifier_type;
-            //var_value.expresion_value.expresion_identifier_value = statement.statement_beginning[2];
           }
           else {
             error("unexpected type for variable declaration");
           }
-          //statement_num += 1;
-          //Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
-          //if (new_statements == NULL) {
-          //  error("can not allocate memory for new varible declaration branch");
-          //}
-          //new_statements[statement_num -1].var_declaration.value = var_value;
-          //new_statements[statement_num -1].var_declaration.var_name = var_name;
           result_tree.statements_node[statement_num -1].statement_value.var_declaration.var_name = var_name;
         }
         else {
@@ -558,7 +536,7 @@ int main(int argc, char * argv[]) {
     printf("%d: %s\n", i, argv[i]);
   }
 
-  //start clock
+  // start clock
   clock_t start, end;
   double time;
   start = clock();
