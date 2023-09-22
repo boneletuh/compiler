@@ -9,4 +9,4 @@ Progamm = {Statement}
 
 Statement = identifier, "=", Expresion ";" ;
 
-Expresion = number, identifier ;
+Expresion = number | identifier ;
