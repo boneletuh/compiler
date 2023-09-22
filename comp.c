@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-//#include <stdarg.h>
 
 // general error function
 void error(char * string) {
@@ -115,46 +114,47 @@ Token * lexer(char * string) {
   Token new_token;
   int i;
   for (i = 0; string[i] != '\0'; i++) {
+    const char simbol = string[i];
     switch (mode) {
       case searching_token:
         token_beginning = i;
-        if (is_in_str(string[i], var_sym)) {
+        if (is_in_str(simbol, var_sym)) {
           mode = identifier;
           i -= 1;
         }
 
-        else if (is_in_str(string[i], numb_sym)) {
+        else if (is_in_str(simbol, numb_sym)) {
           mode = number;
           i -= 1;
         }
 
-        else if (is_in_str(string[i], oper_sym)) {
+        else if (is_in_str(simbol, oper_sym)) {
           mode = operation;
           i -= 1;
         }
 
         // deal here with sigle symbol tokens
-        else if (string[i] == ':') {
+        else if (simbol == ':') {
           mode = add_token;
           new_token.type = Colon;
         }
 
-        else if (string[i] == ';') {
+        else if (simbol == ';') {
           mode = add_token;
           new_token.type = Semi_colon;
         }
         // throw error if the symbol is not allowed
-        else if (!is_in_str(string[i], separ_sym)) {
+        else if (!is_in_str(simbol, separ_sym)) {
           // FIX: use error()
           // FIX: at the end of the file it detects the -1 symbol idk why
-          printf("unkown type of symbol: %c  %hu  %d\n", string[i], (unsigned int) string[i], i);
+          printf("unkown type of symbol: %c  %hu  %d\n", simbol, (unsigned int) string[i], i);
         }
         
         break;
       
       case identifier:
         new_token.type = Identifier;
-        if (!is_in_str(string[i], var_sym)) {
+        if (!is_in_str(simbol, var_sym)) {
           mode = add_token;
           i -= 1;
         }
@@ -163,7 +163,7 @@ Token * lexer(char * string) {
       
       case number:
         new_token.type = Number;
-        if (!is_in_str(string[i], numb_sym)) {
+        if (!is_in_str(simbol, numb_sym)) {
           mode = add_token;
           i -= 1;
         }
@@ -173,7 +173,7 @@ Token * lexer(char * string) {
       case operation:
         new_token.type = Operation;
         // the operation can be longer than 1 symbol
-        if (!is_in_str(string[i], oper_sym)) {
+        if (!is_in_str(simbol, oper_sym)) {
           mode = add_token;
           i -= 1;
         }
@@ -366,15 +366,13 @@ typedef struct Node_Programm {
   Node_Exit exit_node;
 } Node_Programm;
 
-
 Node_Programm parser(Statement * statements) {
   Node_Programm result_tree;
   int statement_num = 0;
   result_tree.statement_node = malloc(statement_num * sizeof(Node_Statement));
-  Statement statement;
   
   for (int i = 0; statements[i].statement_beginning != NULL; i++) {
-    statement = statements[i];
+    const Statement statement = statements[i];
     if (statement.tokens_amount == 2) {
       // exit node
       if (compare_token_to_string(statement.statement_beginning[0], "exit")) {
