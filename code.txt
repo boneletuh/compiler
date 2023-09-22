@@ -1,5 +1,8 @@
-a = 133;
-b = a;
-c = b;
+dfd = 56;
+tr = dfd;
+exit 6;
 
-exit c;
+ppo = 123456;
+a = 9;
+exit dfd;
+vv = 5;
