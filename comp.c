@@ -389,21 +389,23 @@ Node_Programm parser(Statement * statements) {
           statement_num += 1;
           Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
           if (new_statements == NULL) {
-            error("can not allocate memory for new exit node with number branch");
+            error("can not allocate memory for new exit node with number");
           }
           new_statements[statement_num -1].statement_type = exit_node_type;
           new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_number_type;
           new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_number_value.number_token = expresion;
+          result_tree.statements_node = new_statements;
         }
         else if (expresion.type == Identifier) {
           statement_num += 1;
           Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
           if (new_statements == NULL) {
-            error("can not allocate memory for new exit node with identifier branch");
+            error("can not allocate memory for new exit node with identifier");
           }
           new_statements[statement_num -1].statement_type = exit_node_type;
           new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_identifier_type;
           new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_identifier_value = expresion;
+          result_tree.statements_node = new_statements;
         }
         else {
           error("invalid type for exit");
@@ -423,7 +425,7 @@ Node_Programm parser(Statement * statements) {
           if (statement.statement_beginning[2].type == Number) {
             Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
             if (new_statements == NULL) {
-              error("can not allocate memory for new exit node with identifier branch");
+              error("can not allocate memory for new variable declaration node with number");
             }
             new_statements[statement_num -1].statement_type = var_declaration_type;
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_type = expresion_number_type;
@@ -432,10 +434,8 @@ Node_Programm parser(Statement * statements) {
           }
           else if (statement.statement_beginning[2].type == Identifier) {
             Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
-            // FIX: when there are atleast 63 statements, it cant allocate memory for the next "exit"s
-            // i have absolutely no idea why, and i dont care enough 
             if (new_statements == NULL) {
-              error("can not allocate memory for new exit node with identifier branch");
+              error("can not allocate memory for new variable declaration node with identifier");
             }
             new_statements[statement_num -1].statement_type = var_declaration_type;
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_type = expresion_identifier_type;
@@ -496,7 +496,7 @@ void gen_code(Node_Programm syntax_tree, char * out_file_name) {
         add_token_to_file(out_file_ptr, _exit_code.expresion_value.expresion_identifier_value);
       }
       else {
-        error("can not recognize the type of expresion in code generation");
+        error("unexpected type in exit");
       }
       add_string_to_file(out_file_ptr, ")");
     }
