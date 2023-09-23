@@ -371,7 +371,6 @@ typedef struct Node_Statement {
 typedef struct Node_Programm {
   Node_Statement * statements_node;
   int statements_count;
-  //Node_Exit exit_node;
 } Node_Programm;
 
 Node_Programm parser(Statement * statements) {
@@ -385,31 +384,28 @@ Node_Programm parser(Statement * statements) {
       // exit node
       if (compare_token_to_string(statement.statement_beginning[0], "exit")) {
         Token expresion = statement.statement_beginning[1];
+        statement_num += 1;
+        Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
         if (expresion.type == Number) {
-          statement_num += 1;
-          Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
           if (new_statements == NULL) {
             error("can not allocate memory for new exit node with number");
           }
           new_statements[statement_num -1].statement_type = exit_node_type;
           new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_number_type;
           new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_number_value.number_token = expresion;
-          result_tree.statements_node = new_statements;
         }
         else if (expresion.type == Identifier) {
-          statement_num += 1;
-          Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
           if (new_statements == NULL) {
             error("can not allocate memory for new exit node with identifier");
           }
           new_statements[statement_num -1].statement_type = exit_node_type;
           new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_identifier_type;
           new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_identifier_value = expresion;
-          result_tree.statements_node = new_statements;
         }
         else {
           error("invalid type for exit");
         }
+        result_tree.statements_node = new_statements;
       }
       else {
         error("expected an exit");
@@ -422,29 +418,27 @@ Node_Programm parser(Statement * statements) {
           Token var_name = statement.statement_beginning[0];
           Token expresion = statement.statement_beginning[2];
           statement_num += 1;
+          Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
           if (statement.statement_beginning[2].type == Number) {
-            Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
             if (new_statements == NULL) {
               error("can not allocate memory for new variable declaration node with number");
             }
             new_statements[statement_num -1].statement_type = var_declaration_type;
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_type = expresion_number_type;
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_value.expresion_number_value.number_token = expresion;
-            result_tree.statements_node = new_statements;
           }
           else if (statement.statement_beginning[2].type == Identifier) {
-            Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
             if (new_statements == NULL) {
               error("can not allocate memory for new variable declaration node with identifier");
             }
             new_statements[statement_num -1].statement_type = var_declaration_type;
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_type = expresion_identifier_type;
             new_statements[statement_num -1].statement_value.var_declaration.value.expresion_value.expresion_identifier_value = expresion;
-            result_tree.statements_node = new_statements;
           }
           else {
             error("unexpected type for variable declaration");
           }
+          result_tree.statements_node = new_statements;
           result_tree.statements_node[statement_num -1].statement_value.var_declaration.var_name = var_name;
         }
         else {
@@ -470,7 +464,7 @@ void gen_code(Node_Programm syntax_tree, char * out_file_name) {
 
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
-    //var declaration
+    //var declaration node
     if (node.statement_type == var_declaration_type) {
       add_string_to_file(out_file_ptr, " int ");
       add_token_to_file(out_file_ptr, node.statement_value.var_declaration.var_name);
@@ -486,7 +480,7 @@ void gen_code(Node_Programm syntax_tree, char * out_file_name) {
       }
     }
     else if (node.statement_type == exit_node_type) {
-      // exit
+      // exit node
       add_string_to_file(out_file_ptr, " exit(");
       Node_Expresion _exit_code = node.statement_value.exit_node.exit_code;
       if (_exit_code.expresion_type == expresion_number_type) {
@@ -515,9 +509,9 @@ void compile(char * source_code_file, char * result_file) {
   char * code = file_contents(file);
 
   Token * tokens = lexer(code);
-  print_tokens(tokens);
+  //print_tokens(tokens);
   Statement * statements = separate_statements(tokens);
-  print_statements(statements);
+  //print_statements(statements);
   Node_Programm syntax_tree = parser(statements);
   gen_code(syntax_tree, result_file);
 
