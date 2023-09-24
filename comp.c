@@ -25,7 +25,6 @@ int file_size(FILE * file) {
   fseek(file, 0, SEEK_END);
   int size = ftell(file);
   fseek(file, 0, SEEK_SET);
-  
   return size;
 }
 
@@ -373,6 +372,23 @@ typedef struct Node_Programm {
   int statements_count;
 } Node_Programm;
 
+
+Node_Expresion parse_expresion(Token expresion) {
+  Node_Expresion result;
+  if (expresion.type == Number) {
+    result.expresion_type = expresion_number_type;
+    result.expresion_value.expresion_number_value.number_token = expresion;
+  }
+  else if (expresion.type == Identifier) {
+    result.expresion_type = expresion_identifier_type;
+    result.expresion_value.expresion_identifier_value = expresion;
+  }
+  else {
+    error("unexpected type for expresion");
+  }
+  return result;
+}
+
 Node_Programm parser(Statement * statements) {
   Node_Programm result_tree;
   int statement_num = 0;
@@ -380,31 +396,25 @@ Node_Programm parser(Statement * statements) {
   
   for (int i = 0; statements[i].statement_beginning != NULL; i++) {
     const Statement statement = statements[i];
+    statement_num += 1;
+    Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
+    if (new_statements == NULL) {
+      error("can not allocate momory for new node while parsing");
+    }
     if (statement.tokens_amount == 2) {
       // exit node
       if (compare_token_to_string(statement.statement_beginning[0], "exit")) {
         Token expresion = statement.statement_beginning[1];
-        statement_num += 1;
-        Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
         if (expresion.type == Number) {
-          if (new_statements == NULL) {
-            error("can not allocate memory for new exit node with number");
-          }
           new_statements[statement_num -1].statement_type = exit_node_type;
-          new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_number_type;
-          new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_number_value.number_token = expresion;
         }
         else if (expresion.type == Identifier) {
-          if (new_statements == NULL) {
-            error("can not allocate memory for new exit node with identifier");
-          }
           new_statements[statement_num -1].statement_type = exit_node_type;
-          new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_type = expresion_identifier_type;
-          new_statements[statement_num -1].statement_value.exit_node.exit_code.expresion_value.expresion_identifier_value = expresion;
         }
         else {
           error("invalid type for exit");
         }
+        new_statements[statement_num -1].statement_value.exit_node.exit_code = parse_expresion(expresion);
         result_tree.statements_node = new_statements;
       }
       else {
@@ -417,29 +427,18 @@ Node_Programm parser(Statement * statements) {
         if (compare_token_to_string(statement.statement_beginning[1], "=")) {
           Token var_name = statement.statement_beginning[0];
           Token expresion = statement.statement_beginning[2];
-          statement_num += 1;
-          Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
           if (statement.statement_beginning[2].type == Number) {
-            if (new_statements == NULL) {
-              error("can not allocate memory for new variable declaration node with number");
-            }
             new_statements[statement_num -1].statement_type = var_declaration_type;
-            new_statements[statement_num -1].statement_value.var_declaration.value.expresion_type = expresion_number_type;
-            new_statements[statement_num -1].statement_value.var_declaration.value.expresion_value.expresion_number_value.number_token = expresion;
           }
           else if (statement.statement_beginning[2].type == Identifier) {
-            if (new_statements == NULL) {
-              error("can not allocate memory for new variable declaration node with identifier");
-            }
             new_statements[statement_num -1].statement_type = var_declaration_type;
-            new_statements[statement_num -1].statement_value.var_declaration.value.expresion_type = expresion_identifier_type;
-            new_statements[statement_num -1].statement_value.var_declaration.value.expresion_value.expresion_identifier_value = expresion;
           }
           else {
             error("unexpected type for variable declaration");
           }
           result_tree.statements_node = new_statements;
           result_tree.statements_node[statement_num -1].statement_value.var_declaration.var_name = var_name;
+          result_tree.statements_node[statement_num -1].statement_value.var_declaration.value = parse_expresion(expresion);
         }
         else {
           error("expected a '=' in declaration");
