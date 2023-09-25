@@ -384,7 +384,7 @@ Node_Expresion parse_expresion(Token expresion) {
     result.expresion_value.expresion_identifier_value = expresion;
   }
   else {
-    error("unexpected type for expresion");
+    error("unexpected type in expresion");
   }
   return result;
 }
@@ -405,15 +405,7 @@ Node_Programm parser(Statement * statements) {
       // exit node
       if (compare_token_to_string(statement.statement_beginning[0], "exit")) {
         Token expresion = statement.statement_beginning[1];
-        if (expresion.type == Number) {
-          new_statements[statement_num -1].statement_type = exit_node_type;
-        }
-        else if (expresion.type == Identifier) {
-          new_statements[statement_num -1].statement_type = exit_node_type;
-        }
-        else {
-          error("invalid type for exit");
-        }
+        new_statements[statement_num -1].statement_type = exit_node_type;
         new_statements[statement_num -1].statement_value.exit_node.exit_code = parse_expresion(expresion);
         result_tree.statements_node = new_statements;
       }
@@ -427,15 +419,7 @@ Node_Programm parser(Statement * statements) {
         if (compare_token_to_string(statement.statement_beginning[1], "=")) {
           Token var_name = statement.statement_beginning[0];
           Token expresion = statement.statement_beginning[2];
-          if (statement.statement_beginning[2].type == Number) {
-            new_statements[statement_num -1].statement_type = var_declaration_type;
-          }
-          else if (statement.statement_beginning[2].type == Identifier) {
-            new_statements[statement_num -1].statement_type = var_declaration_type;
-          }
-          else {
-            error("unexpected type for variable declaration");
-          }
+          new_statements[statement_num -1].statement_type = var_declaration_type;
           result_tree.statements_node = new_statements;
           result_tree.statements_node[statement_num -1].statement_value.var_declaration.var_name = var_name;
           result_tree.statements_node[statement_num -1].statement_value.var_declaration.value = parse_expresion(expresion);
@@ -456,11 +440,21 @@ Node_Programm parser(Statement * statements) {
   return result_tree;
 }
 
+void gen_expresion(Node_Expresion expresion, FILE * file_ptr) {
+  if (expresion.expresion_type == expresion_number_type) {
+    add_token_to_file(file_ptr, expresion.expresion_value.expresion_number_value.number_token);
+  }
+  else if (expresion.expresion_type == expresion_identifier_type) {
+    add_token_to_file(file_ptr, expresion.expresion_value.expresion_identifier_value);
+  }
+  else {
+    implementation_error("unexpected type in expresion");
+  }
+}
 
 void gen_code(Node_Programm syntax_tree, char * out_file_name) {
   FILE * out_file_ptr = create_file(out_file_name);
   add_string_to_file(out_file_ptr, "#include <stdlib.h>\nvoid main() {\n");
-
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
     //var declaration node
@@ -468,29 +462,12 @@ void gen_code(Node_Programm syntax_tree, char * out_file_name) {
       add_string_to_file(out_file_ptr, " int ");
       add_token_to_file(out_file_ptr, node.statement_value.var_declaration.var_name);
       add_string_to_file(out_file_ptr, " = ");
-      if (node.statement_value.var_declaration.value.expresion_type == expresion_number_type) {
-        add_token_to_file(out_file_ptr, node.statement_value.var_declaration.value.expresion_value.expresion_number_value.number_token);
-      }
-      else if (node.statement_value.var_declaration.value.expresion_type == expresion_identifier_type) {
-        add_token_to_file(out_file_ptr, node.statement_value.var_declaration.value.expresion_value.expresion_identifier_value);
-      }
-      else {
-        error("unexpected type in var declaration");
-      }
+      gen_expresion(node.statement_value.var_declaration.value, out_file_ptr);
     }
     else if (node.statement_type == exit_node_type) {
       // exit node
       add_string_to_file(out_file_ptr, " exit(");
-      Node_Expresion _exit_code = node.statement_value.exit_node.exit_code;
-      if (_exit_code.expresion_type == expresion_number_type) {
-        add_token_to_file(out_file_ptr, _exit_code.expresion_value.expresion_number_value.number_token);
-      }
-      else if (_exit_code.expresion_type == expresion_identifier_type) {
-        add_token_to_file(out_file_ptr, _exit_code.expresion_value.expresion_identifier_value);
-      }
-      else {
-        error("unexpected type in exit");
-      }
+      gen_expresion(node.statement_value.exit_node.exit_code, out_file_ptr);
       add_string_to_file(out_file_ptr, ")");
     }
     else {
