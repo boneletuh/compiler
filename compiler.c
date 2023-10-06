@@ -498,7 +498,10 @@ void compile(char * source_code_file, char * result_file) {
   printf("tokens freed\n");
   free(statements);
   printf("statements freed\n");
-  // FIX: free the memory of the branches of the tree
+  for (int i = 0; i < syntax_tree.statements_count; i++) {
+    free(syntax_tree.statements_node[i]);
+  }
+  printf("syntax tree freed\n");
 }
 
 int main(int argc, char * argv[]) {
