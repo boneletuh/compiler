@@ -255,67 +255,6 @@ void print_tokens(Token * token_array) {
 }
 
 
-typedef struct Statement {
-  Token * statement_beginning;
-  unsigned short tokens_amount;
-} Statement;
-
-Statement * separate_statements(Token * token_array) {
-  int statement_count = 0;
-  Statement * statement_array = malloc(statement_count * sizeof(Statement));
-  Statement statement_buffer;
-  statement_buffer.tokens_amount = 0;
-  statement_buffer.statement_beginning = NULL;
-
-  for (int i = 0; token_array[i].type != End_of_file; i++) {
-    if (token_array[i].type == Semi_colon) {
-      // add stament_buffer to statement_result
-      Statement * new_statement_array = realloc(statement_array, sizeof(Statement) * (statement_count + 1));
-      if (new_statement_array == NULL) { 
-        error("can not allocate memory for new statement");
-      }
-      statement_array = new_statement_array;
-      statement_array[statement_count] = statement_buffer;
-      // clean stament_buffer
-      statement_buffer.statement_beginning = NULL;
-      statement_buffer.tokens_amount = 0;
-
-      statement_count += 1;
-    }
-    else {
-      // add the token to stament_buffer
-      if (statement_buffer.tokens_amount == 0) {
-        statement_buffer.statement_beginning = &(token_array[i]);
-      }
-      statement_buffer.tokens_amount += 1;
-    }
-  }
-
-  statement_buffer.statement_beginning = NULL;
-  statement_buffer.tokens_amount = 0;
-  Statement * new_statement_array = realloc(statement_array, sizeof(Statement) * (statement_count + 1));
-  if (new_statement_array == NULL) {
-    error("can not allocate memory for last statement");
-  }
-  statement_array = new_statement_array;
-  statement_array[statement_count] = statement_buffer;
-  printf("number of statements: %d\n", statement_count);
-  return statement_array;
-}
-
-void print_statements(Statement * statement_array) {
-  Statement statement = statement_array[0];
-  for (int i = 0; statement.statement_beginning != NULL; i++) {
-    statement = statement_array[i];
-    printf("| ");
-    for (int j = 0; j < statement.tokens_amount; j++) {
-      printf("%.*s\t", (statement.statement_beginning[j]).length, statement.statement_beginning[j].beginning);
-    }
-    putchar('\n');
-  }
-}
-
-
 bool compare_token_to_string (Token token, char * string) {
   int i;
   for (i = 0; i < token.length && string[i] != '\0'; i++) {
@@ -389,56 +328,53 @@ Node_Expresion parse_expresion(Token expresion) {
   return result;
 }
 
-Node_Programm parser(Statement * statements) {
+// parses the tokens into a syntax tree
+Node_Programm parser(Token * tokens) {
   Node_Programm result_tree;
-  int statement_num = 0;
-  result_tree.statements_node = malloc(statement_num * sizeof(Node_Statement));
-  
-  for (int i = 0; statements[i].statement_beginning != NULL; i++) {
-    const Statement statement = statements[i];
-    statement_num += 1;
-    Node_Statement * new_statements = realloc(result_tree.statements_node, statement_num * sizeof(Node_Statement));
-    if (new_statements == NULL) {
-      error("can not allocate momory for new node while parsing");
+  int statements_num = 0;
+  result_tree.statements_node = malloc(statements_num * sizeof(Node_Statement));
+  result_tree.statements_count = 0;
+
+  for (int i = 0; tokens[i].type != End_of_file; i++) {
+    statements_num += 1;
+    Node_Statement * new_tree = realloc(result_tree.statements_node, statements_num * sizeof(Node_Statement));
+    if (new_tree == NULL) {
+      error("can not allocate memory for new node while parsing");
     }
-    if (statement.tokens_amount == 2) {
-      // exit node
-      if (compare_token_to_string(statement.statement_beginning[0], "exit")) {
-        Token expresion = statement.statement_beginning[1];
-        new_statements[statement_num -1].statement_type = exit_node_type;
-        new_statements[statement_num -1].statement_value.exit_node.exit_code = parse_expresion(expresion);
-        result_tree.statements_node = new_statements;
+    // exit node
+    if (compare_token_to_string(tokens[i], "exit")) {
+      Token expresion = tokens[i + 1];
+      new_tree[statements_num -1].statement_type = exit_node_type;
+      new_tree[statements_num -1].statement_value.exit_node.exit_code = parse_expresion(expresion);
+      result_tree.statements_node = new_tree;
+      if (!compare_token_to_string(tokens[i + 2], ";")) {
+        error("expected an ';' in exit node");
       }
-      else {
-        error("expected an exit");
-      }
+      i += 2;
     }
-    else if (statement.tokens_amount == 3) {
-      // var declaration node
-      if (statement.statement_beginning[0].type == Identifier) {
-        if (compare_token_to_string(statement.statement_beginning[1], "=")) {
-          Token var_name = statement.statement_beginning[0];
-          Token expresion = statement.statement_beginning[2];
-          new_statements[statement_num -1].statement_type = var_declaration_type;
-          result_tree.statements_node = new_statements;
-          result_tree.statements_node[statement_num -1].statement_value.var_declaration.var_name = var_name;
-          result_tree.statements_node[statement_num -1].statement_value.var_declaration.value = parse_expresion(expresion);
-        }
-        else {
-          error("expected a '=' in declaration");
-        }
+    else if (compare_token_to_string(tokens[i + 1], "=")) {
+      if (tokens[i].type != Identifier) {
+        error("expected an identifier in variable assigment");
       }
-      else {
-        error("expected an identifier in declaration");
+      Token var_name = tokens[i];
+      Token expresion = tokens[i + 2];
+      new_tree[statements_num -1].statement_type = var_declaration_type;
+      result_tree.statements_node = new_tree;
+      result_tree.statements_node[statements_num -1].statement_value.var_declaration.var_name = var_name;
+      result_tree.statements_node[statements_num -1].statement_value.var_declaration.value = parse_expresion(expresion);
+      if (!compare_token_to_string(tokens[i + 3], ";")) {
+        error("expected a ';' in variable assigment");
       }
+      i += 3;
     }
     else {
-      error("unkown statement");
+      error("unkown statement type");
     }
   }
-  result_tree.statements_count = statement_num;
+  result_tree.statements_count = statements_num;
   return result_tree;
 }
+
 
 void gen_expresion(Node_Expresion expresion, FILE * file_ptr) {
   if (expresion.expresion_type == expresion_number_type) {
@@ -486,9 +422,7 @@ void compile(char * source_code_file, char * result_file) {
 
   Token * tokens = lexer(code);
   //print_tokens(tokens);
-  Statement * statements = separate_statements(tokens);
-  //print_statements(statements);
-  Node_Programm syntax_tree = parser(statements);
+  Node_Programm syntax_tree = parser(tokens);
   gen_code(syntax_tree, result_file);
 
   // free all the allocated memory
@@ -496,8 +430,6 @@ void compile(char * source_code_file, char * result_file) {
   printf("code freed\n");
   free(tokens);
   printf("tokens freed\n");
-  free(statements);
-  printf("statements freed\n");
   free(syntax_tree.statements_node);
   printf("syntax tree freed\n");
 }
