@@ -3,6 +3,7 @@
 #include <time.h>
 
 // general error function
+// TODO: improve error handling
 void error(char * string) {
   printf("Error: %s\n", string);
   exit(1);
@@ -144,10 +145,11 @@ Token * lexer(char * string) {
         }
         // throw error if the symbol is not allowed
         else if (!is_in_str(simbol, separ_sym)) {
-          // FIX: use error()
-          // FIX: at the end of the file it detects the -1 symbol idk why
+          // FIX: use implementation_error()
+          // FIX: at the end of the file it detects the -1 symbol probably because utf-8
           if (simbol != -1) {
             printf("unkown type of symbol: %c  %hhu  %d\n", simbol, (unsigned char) string[i], i);
+            exit(2);
           }
         }
         
@@ -306,14 +308,14 @@ typedef struct Node_Statement {
   } statement_type;
 } Node_Statement;
 
-typedef struct Node_Programm {
+typedef struct Node_Program {
   Node_Statement * statements_node;
   int statements_count;
-} Node_Programm;
+} Node_Program;
 
 Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
+  Node_Expresion result;
   if (size == 1) {
-    Node_Expresion result;
     if (expresion_beginning->type == Number) {
       result.expresion_type = expresion_number_type;
       result.expresion_value.expresion_number_value.number_token = *expresion_beginning;
@@ -325,14 +327,16 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
     else {
       error("unexpected type in expresion");
     }
-    return result;
   }
-  implementation_error("not implemented");
+  else {
+    implementation_error("not implemented");
+  }
+  return result;
 }
 
 // parses the tokens into a syntax tree
-Node_Programm parser(Token * tokens) {
-  Node_Programm result_tree;
+Node_Program parser(Token * tokens) {
+  Node_Program result_tree;
   int statements_num = 0;
   result_tree.statements_node = malloc(statements_num * sizeof(Node_Statement));
   result_tree.statements_count = 0;
@@ -378,6 +382,54 @@ Node_Programm parser(Token * tokens) {
   return result_tree;
 }
 
+
+bool compare_str_of_tokens(Token token1, Token token2) {
+  if (token1.length != token2.length) {
+    return false;
+  }
+  for (int i = 0; i < token1.length; i++) {
+    if (token1.beginning[i] != token2.beginning[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool is_var_in_var_list(Token * var_list, int var_list_size, Token variable) {
+  for (int i = 0; i < var_list_size; i++) {
+    if (compare_str_of_tokens(variable, var_list[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+// checks if the program follows the grammar rules and the language specifications
+bool is_valid_program(Node_Program program) {
+  // TODO: use hashmap insted
+  int var_list_size = 0;
+  Token * var_list = malloc(var_list_size * sizeof(Token));
+  for (int i = 0; i < program.statements_count; i++) {
+    Node_Statement statement = program.statements_node[i];
+    // check that when declaring a var there isnt another var with the same name
+    //// check that when using a var ther is another
+    if (statement.statement_type == var_declaration_type) {
+      Token variable = statement.statement_value.var_declaration.var_name;
+      if (is_var_in_var_list(var_list, var_list_size, variable)) {
+        error("variable already declared");
+      }
+      else {
+        var_list_size += 1;
+        var_list = realloc(var_list, var_list_size * sizeof(Token));
+        var_list[var_list_size -1] = variable;
+      }
+    }
+  }
+  printf("program is valid\n");
+  free(var_list);
+  return true;
+}
+
+
 void gen_expresion(Node_Expresion expresion, FILE * file_ptr) {
   if (expresion.expresion_type == expresion_number_type) {
     add_token_to_file(file_ptr, expresion.expresion_value.expresion_number_value.number_token);
@@ -390,7 +442,7 @@ void gen_expresion(Node_Expresion expresion, FILE * file_ptr) {
   }
 }
 
-void gen_code(Node_Programm syntax_tree, char * out_file_name) {
+void gen_code(Node_Program syntax_tree, char * out_file_name) {
   FILE * out_file_ptr = create_file(out_file_name);
   add_string_to_file(out_file_ptr, "#include <stdlib.h>\nvoid main() {\n");
   for (int i = 0; i < syntax_tree.statements_count; i++) {
@@ -419,14 +471,16 @@ void gen_code(Node_Programm syntax_tree, char * out_file_name) {
 
 
 void compile(char * source_code_file, char * result_file) {
-  // open the source cod file
+  // open the source code file
   FILE * file = fopen(source_code_file, "r");
   char * code = file_contents(file);
 
   Token * tokens = lexer(code);
   //print_tokens(tokens);
-  Node_Programm syntax_tree = parser(tokens);
-  gen_code(syntax_tree, result_file);
+  Node_Program syntax_tree = parser(tokens);
+  if (is_valid_program(syntax_tree)) {
+    gen_code(syntax_tree, result_file);
+  }
 
   // free all the allocated memory
   free(code);
@@ -438,7 +492,7 @@ void compile(char * source_code_file, char * result_file) {
 }
 
 int main(int argc, char ** argv) {
-  if (argc < 3) {
+  if (argc != 3) {
     error("invalid number of cmd arguments, you must write:\n  compiler [input file path] [output file path]");
   }
   // start clock
