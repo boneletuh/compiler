@@ -311,21 +311,23 @@ typedef struct Node_Programm {
   int statements_count;
 } Node_Programm;
 
-
-Node_Expresion parse_expresion(Token expresion) {
-  Node_Expresion result;
-  if (expresion.type == Number) {
-    result.expresion_type = expresion_number_type;
-    result.expresion_value.expresion_number_value.number_token = expresion;
+Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
+  if (size == 1) {
+    Node_Expresion result;
+    if (expresion_beginning->type == Number) {
+      result.expresion_type = expresion_number_type;
+      result.expresion_value.expresion_number_value.number_token = *expresion_beginning;
+    }
+    else if (expresion_beginning->type == Identifier) {
+      result.expresion_type = expresion_identifier_type;
+      result.expresion_value.expresion_identifier_value = *expresion_beginning;
+    }
+    else {
+      error("unexpected type in expresion");
+    }
+    return result;
   }
-  else if (expresion.type == Identifier) {
-    result.expresion_type = expresion_identifier_type;
-    result.expresion_value.expresion_identifier_value = expresion;
-  }
-  else {
-    error("unexpected type in expresion");
-  }
-  return result;
+  implementation_error("not implemented");
 }
 
 // parses the tokens into a syntax tree
@@ -343,29 +345,30 @@ Node_Programm parser(Token * tokens) {
     }
     // exit node
     if (compare_token_to_string(tokens[i], "exit")) {
-      Token expresion = tokens[i + 1];
+      // get the number of tokens in the expresion, we add 1 to skip the "exit"
+      int expresion_beginning = i +1;
+      // TODO: improve this loop, it is very unsafe
+      while (tokens[i].type != Semi_colon) { i++; };
+      int expresion_size = i - expresion_beginning;
       new_tree[statements_num -1].statement_type = exit_node_type;
-      new_tree[statements_num -1].statement_value.exit_node.exit_code = parse_expresion(expresion);
+      new_tree[statements_num -1].statement_value.exit_node.exit_code = parse_expresion(&tokens[expresion_beginning], expresion_size);
       result_tree.statements_node = new_tree;
-      if (!compare_token_to_string(tokens[i + 2], ";")) {
-        error("expected an ';' in exit node");
-      }
-      i += 2;
     }
+    // FIX: this would crash if there is an identifier at the end of the file
     else if (compare_token_to_string(tokens[i + 1], "=")) {
       if (tokens[i].type != Identifier) {
         error("expected an identifier in variable assigment");
       }
       Token var_name = tokens[i];
-      Token expresion = tokens[i + 2];
+      // get the number of tokens in the expresion, we add 2 to skip the var name and the "="
+      int expresion_beginning = i +2;
+      // TODO: improve this loop, it is very unsafe
+      while (tokens[i].type != Semi_colon) { i++; };
+      int expresion_size = i - expresion_beginning;
       new_tree[statements_num -1].statement_type = var_declaration_type;
+      new_tree[statements_num -1].statement_value.var_declaration.var_name = var_name;
+      new_tree[statements_num -1].statement_value.var_declaration.value = parse_expresion(&tokens[expresion_beginning], expresion_size);
       result_tree.statements_node = new_tree;
-      result_tree.statements_node[statements_num -1].statement_value.var_declaration.var_name = var_name;
-      result_tree.statements_node[statements_num -1].statement_value.var_declaration.value = parse_expresion(expresion);
-      if (!compare_token_to_string(tokens[i + 3], ";")) {
-        error("expected a ';' in variable assigment");
-      }
-      i += 3;
     }
     else {
       error("unkown statement type");
@@ -374,7 +377,6 @@ Node_Programm parser(Token * tokens) {
   result_tree.statements_count = statements_num;
   return result_tree;
 }
-
 
 void gen_expresion(Node_Expresion expresion, FILE * file_ptr) {
   if (expresion.expresion_type == expresion_number_type) {
@@ -417,6 +419,7 @@ void gen_code(Node_Programm syntax_tree, char * out_file_name) {
 
 
 void compile(char * source_code_file, char * result_file) {
+  // open the source cod file
   FILE * file = fopen(source_code_file, "r");
   char * code = file_contents(file);
 
@@ -434,27 +437,26 @@ void compile(char * source_code_file, char * result_file) {
   printf("syntax tree freed\n");
 }
 
-int main(int argc, char * argv[]) {
-  for (int i = 0; i < argc; i++) {
-    printf("%d: %s\n", i, argv[i]);
+int main(int argc, char ** argv) {
+  if (argc < 3) {
+    error("invalid number of cmd arguments, you must write:\n  compiler [input file path] [output file path]");
   }
-
   // start clock
   clock_t start, end;
-  double time;
+  float time;
   start = clock();
 
-  char * code = "code.txt";
-  char * out_file = "out.c";
+  char * code = argv[1];
+  char * out_file = argv[2];
 
   compile(code, out_file);
 
   // time it
   end = clock();
   time = ((float) (end - start)) / CLOCKS_PER_SEC;
-  printf("\n#######\ntime: %lf\n", time);
+  printf("\n#######\ntime: %f\n", time);
 
-  printf("code finnished succesfully\n");
+  printf("compilation finnished succesfully\n");
 
   return 0;
 }
