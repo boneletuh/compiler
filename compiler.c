@@ -145,11 +145,9 @@ Token * lexer(char * string) {
         }
         // throw error if the symbol is not allowed
         else if (!is_in_str(simbol, separ_sym)) {
-          // FIX: use implementation_error()
           // FIX: at the end of the file it detects the -1 symbol probably because utf-8
           if (simbol != -1) {
-            printf("unkown type of symbol: %c  %hhu  %d\n", simbol, (unsigned char) string[i], i);
-            exit(2);
+            implementation_error("unkown type of symbol");
           }
         }
         
@@ -212,7 +210,7 @@ Token * lexer(char * string) {
 
       default:
         // Fix: use implementation_error()
-        printf("Error: unkown State with code: %d\n", mode);
+        printf("Error: unkown tokenizer Mode with code: %d\n", mode);
         exit(1);
     }
   }
@@ -246,7 +244,6 @@ Token * lexer(char * string) {
   token_array[token_count].beginning = NULL;
   token_array[token_count].length = 0;
   token_array[token_count].type = End_of_file;
-  printf("number of tokens: %d\n", token_count);
   return token_array;
 }
 
@@ -257,7 +254,7 @@ void print_tokens(Token * token_array) {
 }
 
 
-bool compare_token_to_string (Token token, char * string) {
+bool compare_token_to_string(Token token, char * string) {
   int i;
   for (i = 0; i < token.length && string[i] != '\0'; i++) {
     if (token.beginning[i] != string[i]) {
@@ -280,13 +277,29 @@ typedef struct Node_Number {
 typedef struct Node_Expresion {
   enum {
     expresion_number_type,
-    expresion_identifier_type
+    expresion_identifier_type,
+    expresion_binary_operation_type
   } expresion_type;
   union {
     Node_Number expresion_number_value;
     Token expresion_identifier_value;
+    // binary operation is a pointer so it can be recursive
+    struct Node_Binary_Operation * expresion_binary_operation_value;
   } expresion_value;
 } Node_Expresion;
+
+typedef struct Node_Binary_Operation {
+  Node_Expresion left_side;
+  enum {
+    binary_operation_sum_type,
+    binary_operation_sub_type,
+    binary_operation_mul_type,
+    binary_operation_div_type,
+    binary_operation_mod_type,
+    binary_operation_exp_type
+  } operation_type;
+  Node_Expresion right_side;
+} Node_Binary_Operation;
 
 typedef struct Node_Exit {
   Node_Expresion exit_code;
@@ -326,6 +339,34 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
     }
     else {
       error("unexpected type in expresion");
+    }
+  }
+  else if (size == 3) {
+    result.expresion_type = expresion_binary_operation_type;
+    // there are 2 sides in a binary operation thats why theres a 2 here
+    result.expresion_value.expresion_binary_operation_value = malloc(2 * sizeof(Node_Expresion));
+    if (result.expresion_value.expresion_binary_operation_value == NULL) {
+      error("can not allocate memory for binary operation");
+    }
+    result.expresion_value.expresion_binary_operation_value->left_side = parse_expresion(&expresion_beginning[0], 1);
+    result.expresion_value.expresion_binary_operation_value->right_side = parse_expresion(&expresion_beginning[2], 1);
+    if (compare_token_to_string(expresion_beginning[1], "+")) {
+      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_sum_type;
+    }
+    else if (compare_token_to_string(expresion_beginning[1], "-")) {
+      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_sub_type;
+    }
+    else if (compare_token_to_string(expresion_beginning[1], "*")) {
+      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_mul_type;
+    }
+    else if (compare_token_to_string(expresion_beginning[1], "/")) {
+      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_div_type;
+    }
+    else if (compare_token_to_string(expresion_beginning[1], "%")) {
+      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_mod_type;
+    }
+    else {
+      error("unkown operation in expresion");
     }
   }
   else {
@@ -403,6 +444,21 @@ bool is_var_in_var_list(Token * var_list, int var_list_size, Token variable) {
   }
   return false;
 }
+
+// checks if there is some undeclared var in the expresion, if so it throws an error
+bool is_expresion_valid(Token * var_list, int var_list_size, Node_Expresion expresion) {
+  if (expresion.expresion_type == expresion_identifier_type) {
+    if (!is_var_in_var_list(var_list, var_list_size, expresion.expresion_value.expresion_identifier_value)) {
+      error("undeclared variable used");
+    }
+  }
+  else if (expresion.expresion_type == expresion_binary_operation_type) {
+    is_expresion_valid(var_list, var_list_size, expresion.expresion_value.expresion_binary_operation_value->left_side);
+    is_expresion_valid(var_list, var_list_size, expresion.expresion_value.expresion_binary_operation_value->right_side);
+  }
+  return true;
+}
+
 // checks if the program follows the grammar rules and the language specifications
 bool is_valid_program(Node_Program program) {
   // TODO: use hashmap insted
@@ -410,9 +466,8 @@ bool is_valid_program(Node_Program program) {
   Token * var_list = malloc(var_list_size * sizeof(Token));
   for (int i = 0; i < program.statements_count; i++) {
     Node_Statement statement = program.statements_node[i];
-    // check that when declaring a var there isnt another var with the same name
-    //// check that when using a var ther is another
     if (statement.statement_type == var_declaration_type) {
+      // check that when declaring a var there isnt another var with the same name
       Token variable = statement.statement_value.var_declaration.var_name;
       if (is_var_in_var_list(var_list, var_list_size, variable)) {
         error("variable already declared");
@@ -422,9 +477,18 @@ bool is_valid_program(Node_Program program) {
         var_list = realloc(var_list, var_list_size * sizeof(Token));
         var_list[var_list_size -1] = variable;
       }
+      // check that when using a var it has been declared before
+      Node_Expresion expresion = statement.statement_value.var_declaration.value;
+      is_expresion_valid(var_list, var_list_size, expresion);
+    }
+    else if (statement.statement_type == exit_node_type) {
+      Node_Expresion expresion = statement.statement_value.exit_node.exit_code;
+      is_expresion_valid(var_list, var_list_size, expresion);
+    }
+    else {
+      implementation_error("not implemented");
     }
   }
-  printf("program is valid\n");
   free(var_list);
   return true;
 }
@@ -437,18 +501,44 @@ void gen_expresion(Node_Expresion expresion, FILE * file_ptr) {
   else if (expresion.expresion_type == expresion_identifier_type) {
     add_token_to_file(file_ptr, expresion.expresion_value.expresion_identifier_value);
   }
+  else if (expresion.expresion_type == expresion_binary_operation_type) {
+    gen_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side, file_ptr);
+    if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_sum_type) {
+      add_string_to_file(file_ptr, " + ");
+    }
+    else if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_sub_type) {
+      add_string_to_file(file_ptr, " - ");
+    }
+    else if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_mul_type) {
+      add_string_to_file(file_ptr, " * ");
+    }
+    else if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_div_type) {
+      add_string_to_file(file_ptr, " / ");
+    }
+    else if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_mod_type) {
+      add_string_to_file(file_ptr, " % ");
+    }
+    else if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_exp_type) {
+      add_string_to_file(file_ptr, " ^ ");
+    }
+    else {
+      implementation_error("ukown operation in expresion");
+    }
+    gen_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side, file_ptr);
+  }
   else {
     implementation_error("unexpected type in expresion");
   }
 }
 
+// it generates c code
 void gen_code(Node_Program syntax_tree, char * out_file_name) {
   FILE * out_file_ptr = create_file(out_file_name);
   add_string_to_file(out_file_ptr, "#include <stdlib.h>\nvoid main() {\n");
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
-    //var declaration node
     if (node.statement_type == var_declaration_type) {
+      // var declaration node
       add_string_to_file(out_file_ptr, " int ");
       add_token_to_file(out_file_ptr, node.statement_value.var_declaration.var_name);
       add_string_to_file(out_file_ptr, " = ");
@@ -469,6 +559,35 @@ void gen_code(Node_Program syntax_tree, char * out_file_name) {
   fclose(out_file_ptr);
 }
 
+void free_expresion(Node_Expresion expresion) {
+  if (expresion.expresion_type == expresion_binary_operation_type) {
+    free_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side);
+    free_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side);
+    // FIX: it breaks here
+    //free(expresion.expresion_value.expresion_binary_operation_value);
+  }
+}
+
+// frees all the allocated memory
+void free_all_memory(char * code, Token * tokens, Node_Program syntax_tree) {
+  free(code);
+  printf("code freed\n");
+  free(tokens);
+  printf("tokens freed\n");
+  for (int i = 0; i < syntax_tree.statements_count; i++) {
+    Node_Statement node = syntax_tree.statements_node[i];
+    if (node.statement_type == var_declaration_type) {
+      // var declaration node
+      free_expresion(node.statement_value.var_declaration.value);
+    }
+    else if (node.statement_type == exit_node_type) {
+      // exit node
+      free_expresion(node.statement_value.exit_node.exit_code);
+    }
+  }
+  free(syntax_tree.statements_node);
+  printf("syntax tree freed\n");
+}
 
 void compile(char * source_code_file, char * result_file) {
   // open the source code file
@@ -479,16 +598,12 @@ void compile(char * source_code_file, char * result_file) {
   //print_tokens(tokens);
   Node_Program syntax_tree = parser(tokens);
   if (is_valid_program(syntax_tree)) {
+    printf("program is valid\n");
     gen_code(syntax_tree, result_file);
   }
 
-  // free all the allocated memory
-  free(code);
-  printf("code freed\n");
-  free(tokens);
-  printf("tokens freed\n");
-  free(syntax_tree.statements_node);
-  printf("syntax tree freed\n");
+  // free all the memory
+  free_all_memory(code, tokens, syntax_tree);
 }
 
 int main(int argc, char ** argv) {
