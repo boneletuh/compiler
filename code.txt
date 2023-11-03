@@ -1,8 +1,0 @@
-dfd = 56;
-tr = dfd;
-exit 6;
-
-ppo = 123456;
-a = 9;
-exit dfd;
-vv = 5;
