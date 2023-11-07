@@ -145,7 +145,7 @@ Token * lexer(char * string) {
         }
         // throw error if the symbol is not allowed
         else if (!is_in_str(simbol, separ_sym)) {
-          // FIX: at the end of the file it detects the -1 symbol probably because utf-8
+          // FIX: at the end of the file it sometimes detects the -1 symbol probably because utf-8
           if (simbol != -1) {
             implementation_error("unkown type of symbol");
           }
@@ -211,7 +211,7 @@ Token * lexer(char * string) {
       default:
         // Fix: use implementation_error()
         printf("Error: unkown tokenizer Mode with code: %d\n", mode);
-        exit(1);
+        exit(2);
     }
   }
   // if theres still a token left add it to the token array
@@ -326,6 +326,7 @@ typedef struct Node_Program {
   int statements_count;
 } Node_Program;
 
+// parses expresion recursively
 Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
   Node_Expresion result;
   if (size == 1) {
@@ -342,35 +343,56 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
     }
   }
   else if (size == 3) {
-    result.expresion_type = expresion_binary_operation_type;
-    // there are 2 sides in a binary operation thats why theres a 2 here
-    result.expresion_value.expresion_binary_operation_value = malloc(2 * sizeof(Node_Expresion));
-    if (result.expresion_value.expresion_binary_operation_value == NULL) {
-      error("can not allocate memory for binary operation");
+    int left_side_beginning = 0;
+    int left_side_size;
+    Token operation;
+    int right_side_beginning;
+    int right_side_size;
+
+    int i;
+    for (i = 0; i < size; i++) {
+      if (expresion_beginning[i].type == Operation) {
+        left_side_size = i;
+        operation = expresion_beginning[i];
+        right_side_beginning = 1 +1;
+      }
     }
-    result.expresion_value.expresion_binary_operation_value->left_side = parse_expresion(&expresion_beginning[0], 1);
-    result.expresion_value.expresion_binary_operation_value->right_side = parse_expresion(&expresion_beginning[2], 1);
-    if (compare_token_to_string(expresion_beginning[1], "+")) {
-      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_sum_type;
+    right_side_size = i - right_side_beginning;
+
+    Node_Binary_Operation * bin_operation = malloc(sizeof(Node_Binary_Operation));
+    if (bin_operation == NULL) {
+      error("can not allocate memory for new binary operation");
     }
-    else if (compare_token_to_string(expresion_beginning[1], "-")) {
-      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_sub_type;
+    bin_operation->left_side = parse_expresion(&expresion_beginning[left_side_beginning], left_side_size);
+    bin_operation->right_side = parse_expresion(&expresion_beginning[right_side_beginning], right_side_size);
+
+    if (compare_token_to_string(operation, "+")) {
+      bin_operation->operation_type = binary_operation_sum_type;
     }
-    else if (compare_token_to_string(expresion_beginning[1], "*")) {
-      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_mul_type;
+    else if (compare_token_to_string(operation, "-")) {
+      bin_operation->operation_type = binary_operation_sub_type;
     }
-    else if (compare_token_to_string(expresion_beginning[1], "/")) {
-      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_div_type;
+    else if (compare_token_to_string(operation, "*")) {
+      bin_operation->operation_type = binary_operation_mul_type;
     }
-    else if (compare_token_to_string(expresion_beginning[1], "%")) {
-      result.expresion_value.expresion_binary_operation_value->operation_type = binary_operation_mod_type;
+    else if (compare_token_to_string(operation, "/")) {
+      bin_operation->operation_type = binary_operation_div_type;
+    }
+    else if (compare_token_to_string(operation, "%")) {
+      bin_operation->operation_type = binary_operation_mod_type;
+    }
+    else if (compare_token_to_string(operation, "^")) {
+      bin_operation->operation_type = binary_operation_exp_type;
     }
     else {
       error("unkown operation in expresion");
     }
+
+    result.expresion_value.expresion_binary_operation_value = bin_operation;
+    result.expresion_type = expresion_binary_operation_type;
   }
   else {
-    implementation_error("not implemented");
+    implementation_error("parsing this expresion is not implemented");
   }
   return result;
 }
@@ -486,7 +508,7 @@ bool is_valid_program(Node_Program program) {
       is_expresion_valid(var_list, var_list_size, expresion);
     }
     else {
-      implementation_error("not implemented");
+      implementation_error("generating this statement is not implemented");
     }
   }
   free(var_list);
@@ -563,8 +585,7 @@ void free_expresion(Node_Expresion expresion) {
   if (expresion.expresion_type == expresion_binary_operation_type) {
     free_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side);
     free_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side);
-    // FIX: it breaks here
-    //free(expresion.expresion_value.expresion_binary_operation_value);
+    free(expresion.expresion_value.expresion_binary_operation_value);
   }
 }
 
