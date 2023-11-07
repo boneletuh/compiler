@@ -247,12 +247,6 @@ Token * lexer(char * string) {
   return token_array;
 }
 
-void print_tokens(Token * token_array) {
-  for (int i = 0; token_array[i].type != End_of_file; i++) {
-    printf("%.*s\n", token_array[i].length, token_array[i].beginning);
-  }
-}
-
 
 bool compare_token_to_string(Token token, char * string) {
   int i;
@@ -342,7 +336,7 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
       error("unexpected type in expresion");
     }
   }
-  else if (size == 3) {
+  else if (size % 2 == 1) {
     int left_side_beginning = 0;
     int left_side_size;
     Token operation;
@@ -354,11 +348,10 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
       if (expresion_beginning[i].type == Operation) {
         left_side_size = i;
         operation = expresion_beginning[i];
-        right_side_beginning = 1 +1;
+        right_side_beginning = i +1;
       }
     }
     right_side_size = i - right_side_beginning;
-
     Node_Binary_Operation * bin_operation = malloc(sizeof(Node_Binary_Operation));
     if (bin_operation == NULL) {
       error("can not allocate memory for new binary operation");
@@ -524,6 +517,7 @@ void gen_expresion(Node_Expresion expresion, FILE * file_ptr) {
     add_token_to_file(file_ptr, expresion.expresion_value.expresion_identifier_value);
   }
   else if (expresion.expresion_type == expresion_binary_operation_type) {
+    add_string_to_file(file_ptr, "(");
     gen_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side, file_ptr);
     if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_sum_type) {
       add_string_to_file(file_ptr, " + ");
@@ -538,15 +532,17 @@ void gen_expresion(Node_Expresion expresion, FILE * file_ptr) {
       add_string_to_file(file_ptr, " / ");
     }
     else if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_mod_type) {
-      add_string_to_file(file_ptr, " % ");
+      add_string_to_file(file_ptr, " %% ");
     }
     else if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_exp_type) {
-      add_string_to_file(file_ptr, " ^ ");
+      //add_string_to_file(file_ptr, " ^ ");
+      implementation_error("exponentation not implemented");
     }
     else {
       implementation_error("ukown operation in expresion");
     }
     gen_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side, file_ptr);
+    add_string_to_file(file_ptr, ")");
   }
   else {
     implementation_error("unexpected type in expresion");
@@ -616,7 +612,6 @@ void compile(char * source_code_file, char * result_file) {
   char * code = file_contents(file);
 
   Token * tokens = lexer(code);
-  //print_tokens(tokens);
   Node_Program syntax_tree = parser(tokens);
   if (is_valid_program(syntax_tree)) {
     printf("program is valid\n");
