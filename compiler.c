@@ -3,7 +3,7 @@
 #include <time.h>
 
 // general error function
-// TODO: improve error handling
+// TODO: improve error handling a bit more
 void error(char * string) {
   printf("Error: %s\n", string);
   exit(1);
@@ -14,6 +14,18 @@ void error(char * string) {
 void implementation_error(char * string) {
   printf("Implementation Error: %s\n", string);
   exit(2);
+}
+
+// for errors that happend while dealing with files
+void file_error(char * string) {
+  printf("File Error: %s\n", string);
+  exit(3);
+}
+
+// for errors that happend when calling malloc() or realloc() or something like that
+void allocation_error(char * string) {
+  printf("Memory Allocation Error: %s\n", string);
+  exit(4);
 }
 
 typedef enum bool {
@@ -31,13 +43,13 @@ int file_size(FILE * file) {
 
 char * file_contents(FILE * fptr) {
   if (fptr == NULL){
-    error("can not open the code file");
+    file_error("can not open the input code file");
   }
 
   int size = file_size(fptr);
   char * out = (char *) malloc(size + 1);
   if (out == NULL) {
-    error("can not allocate memory for the program source code");
+    allocation_error("can not allocate memory for the program source code");
   }
 
   for (int i = 0; i < size; i++) {
@@ -52,9 +64,7 @@ char * file_contents(FILE * fptr) {
 FILE * create_file(char * file_name) {
   FILE * fptr = fopen(file_name,"w");
   if (fptr == NULL) {
-    // FIX: use error()
-    printf("could not create the file: %s", file_name);   
-    exit(1);
+    file_error("could not create the file for the output");
   }
   return fptr; 
 }
@@ -188,7 +198,7 @@ Token * lexer(char * string) {
         // add token to token_array
         Token * new_token_array = realloc(token_array, sizeof(Token) * (token_count + 1));
         if (new_token_array == NULL) { 
-          error("can not allocate memory for new token");
+          allocation_error("can not allocate memory for new token");
         }
 
         token_array = new_token_array;
@@ -200,7 +210,7 @@ Token * lexer(char * string) {
         new_token.length = 0;
         new_token.type = End_of_file;
         
-        // print the token and update token beginning
+        // update token beginning
         token_beginning = i;
 
         mode = searching_token;
@@ -209,9 +219,7 @@ Token * lexer(char * string) {
         break;
 
       default:
-        // Fix: use implementation_error()
-        printf("Error: unkown tokenizer Mode with code: %d\n", mode);
-        exit(2);
+        implementation_error("unkown tokenizer State");
     }
   }
   // if theres still a token left add it to the token array
@@ -222,7 +230,7 @@ Token * lexer(char * string) {
     // add token to token_array
     Token * new_token_array = realloc(token_array, sizeof(Token) * (token_count + 1));
     if (new_token_array == NULL) { 
-      error("can not allocate memory for last token");
+      allocation_error("can not allocate memory for last token");
     }
 
     token_array = new_token_array;
@@ -236,7 +244,7 @@ Token * lexer(char * string) {
   // add EOF token to the end of token array
   Token * new_token_array = realloc(token_array, sizeof(Token) * (token_count + 1));
   if (new_token_array == NULL) { 
-    error("can not allocate memory for EOF token");
+    allocation_error("can not allocate memory for EOF token");
   }
 
   token_array = new_token_array;
@@ -324,6 +332,7 @@ typedef struct Node_Program {
 Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
   Node_Expresion result;
   if (size == 1) {
+    // set the type of the expresion
     if (expresion_beginning->type == Number) {
       result.expresion_type = expresion_number_type;
       result.expresion_value.expresion_number_value.number_token = *expresion_beginning;
@@ -342,7 +351,7 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
     Token operation;
     int right_side_beginning;
     int right_side_size;
-
+    // find the beginning and size of the left and right side of the expresion
     int i;
     for (i = 0; i < size; i++) {
       if (expresion_beginning[i].type == Operation) {
@@ -352,9 +361,10 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
       }
     }
     right_side_size = i - right_side_beginning;
+    // create a new node a parse each side of the expresion
     Node_Binary_Operation * bin_operation = malloc(sizeof(Node_Binary_Operation));
     if (bin_operation == NULL) {
-      error("can not allocate memory for new binary operation");
+      allocation_error("can not allocate memory for new binary operation");
     }
     bin_operation->left_side = parse_expresion(&expresion_beginning[left_side_beginning], left_side_size);
     bin_operation->right_side = parse_expresion(&expresion_beginning[right_side_beginning], right_side_size);
@@ -401,13 +411,13 @@ Node_Program parser(Token * tokens) {
     statements_num += 1;
     Node_Statement * new_tree = realloc(result_tree.statements_node, statements_num * sizeof(Node_Statement));
     if (new_tree == NULL) {
-      error("can not allocate memory for new node while parsing");
+      allocation_error("can not allocate memory for new statement");
     }
     // exit node
     if (compare_token_to_string(tokens[i], "exit")) {
       // get the number of tokens in the expresion, we add 1 to skip the "exit"
       int expresion_beginning = i +1;
-      // TODO: improve this loop, it is very unsafe
+      // FIX: improve this loop, it is very unsafe
       while (tokens[i].type != Semi_colon) { i++; };
       int expresion_size = i - expresion_beginning;
       new_tree[statements_num -1].statement_type = exit_node_type;
@@ -422,7 +432,7 @@ Node_Program parser(Token * tokens) {
       Token var_name = tokens[i];
       // get the number of tokens in the expresion, we add 2 to skip the var name and the "="
       int expresion_beginning = i +2;
-      // TODO: improve this loop, it is very unsafe
+      // FIX: improve this loop, it is very unsafe
       while (tokens[i].type != Semi_colon) { i++; };
       int expresion_size = i - expresion_beginning;
       new_tree[statements_num -1].statement_type = var_declaration_type;
@@ -490,6 +500,9 @@ bool is_valid_program(Node_Program program) {
       else {
         var_list_size += 1;
         var_list = realloc(var_list, var_list_size * sizeof(Token));
+        if (var_list == NULL) {
+          allocation_error("could not allocate memory for variable tracker list");
+        }
         var_list[var_list_size -1] = variable;
       }
       // check that when using a var it has been declared before
@@ -591,6 +604,7 @@ void free_all_memory(char * code, Token * tokens, Node_Program syntax_tree) {
   printf("code freed\n");
   free(tokens);
   printf("tokens freed\n");
+  // free the expresions of the program recursively
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
     if (node.statement_type == var_declaration_type) {
@@ -616,6 +630,9 @@ void compile(char * source_code_file, char * result_file) {
   if (is_valid_program(syntax_tree)) {
     printf("program is valid\n");
     gen_code(syntax_tree, result_file);
+  }
+  else {
+    error("program is not valid");
   }
 
   // free all the memory
