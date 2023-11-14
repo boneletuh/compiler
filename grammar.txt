@@ -8,10 +8,14 @@ letter = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" |
 
 identifier = letter, {letter} ;
 
+operator = "+" | "-" | "*" | "/" ;
+
+
+Binary_operation = Expresion, operator, Expresion ;
 
 Progamm = {Statement} ;
 
 Statement = (identifier, "=", Expresion ";") |
             ("exit", Expresion, ";");
 
-Expresion = number | identifier ;
+Expresion = number | identifier | Binary_operation;
