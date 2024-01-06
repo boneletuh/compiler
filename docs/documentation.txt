@@ -1,0 +1,16 @@
+to use the compiler in a terminal write:
+ compiler [input file path] [output file path]
+
+
+associativity is allways left to right
+the binary operator precedence are:
+ +	0
+ -	0
+ %	1
+ *	2
+ /	2
+ ^	3
+
+
+you can not declare two variables with the same name
+you can not use a variable wich has not been declared
