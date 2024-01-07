@@ -124,7 +124,7 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
     int left_side_beginning = 0;
     int left_side_size;
     Token operation;
-    int max_oper_preced = 9999; // some near positive infinity number
+    int min_oper_preced = 9999; // some near positive infinity number
     int right_side_beginning;
     int right_side_size;
     // find the beginning and size of the left and right side of the expresion
@@ -132,8 +132,8 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
     for (i = 0; i < size; i++) {
       // find the operation with the lowest precedence
       if (expresion_beginning[i].type == Operation) {
-        if (get_operation_precedence(expresion_beginning[i]) < max_oper_preced) {
-          max_oper_preced = get_operation_precedence(expresion_beginning[i]);
+          if (get_operation_precedence(expresion_beginning[i]) < min_oper_preced) {
+          min_oper_preced = get_operation_precedence(expresion_beginning[i]);
           left_side_size = i;
           operation = expresion_beginning[i];
           right_side_beginning = i +1;
@@ -142,10 +142,7 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
     }
     right_side_size = i - right_side_beginning;
     // create a new node a parse each side of the expresion
-    Node_Binary_Operation * bin_operation = malloc(sizeof(Node_Binary_Operation));
-    if (bin_operation == NULL) {
-      allocation_error("can not allocate memory for new binary operation");
-    }
+    Node_Binary_Operation * bin_operation = smalloc(sizeof(Node_Binary_Operation));
     // parse each side of the binary expresion recursively
     bin_operation->left_side = parse_expresion(&expresion_beginning[left_side_beginning], left_side_size);
     bin_operation->operation_type = get_operation_type(operation);
@@ -169,10 +166,7 @@ Node_Program parser(Token * tokens) {
 
   for (int i = 0; tokens[i].type != End_of_file; i++) {
     statements_num += 1;
-    Node_Statement * new_tree = realloc(result_tree.statements_node, statements_num * sizeof(Node_Statement));
-    if (new_tree == NULL) {
-      allocation_error("can not allocate memory for new statement");
-    }
+    Node_Statement * new_tree = srealloc(result_tree.statements_node, statements_num * sizeof(Node_Statement));
     // exit node
     if (compare_token_to_string(tokens[i], "exit")) {
       // get the number of tokens in the expresion, we add 1 to skip the "exit"
@@ -185,13 +179,13 @@ Node_Program parser(Token * tokens) {
       result_tree.statements_node = new_tree;
     }
     // FIX: this would crash if there is an identifier at the end of the file
-    else if (compare_token_to_string(tokens[i + 1], "=")) {
+    else if (compare_token_to_string(tokens[i + 1], ":") && compare_token_to_string(tokens[i + 2], "=")) {
       if (tokens[i].type != Identifier) {
         error("expected an identifier in variable assigment");
       }
       Token var_name = tokens[i];
-      // get the number of tokens in the expresion, we add 2 to skip the var name and the "="
-      int expresion_beginning = i +2;
+      // get the number of tokens in the expresion, we add 3 to skip the var name, the ":" and the "="
+      int expresion_beginning = i +3;
       // FIX: improve this loop, it is very unsafe
       while (tokens[i].type != Semi_colon) i++;
       int expresion_size = i - expresion_beginning;

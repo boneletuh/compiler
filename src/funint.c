@@ -1,4 +1,5 @@
 #include <time.h>
+#include <string.h>
 
 #include "mlib.h"
 #include "errors.h"
@@ -46,7 +47,17 @@ void compile(char * source_code_file, char * result_file) {
   Node_Program syntax_tree = parser(tokens);
   if (is_valid_program(syntax_tree)) {
     printf("program is valid\n");
-    gen_C_code(syntax_tree, result_file);
+    char * extension = get_file_extension(result_file);
+    printf("extension: (%s)\n", extension);
+    if (strcmp(extension, ".c") == 0) {
+      gen_C_code(syntax_tree, result_file);
+    }
+    else if (strcmp(extension, ".asm") == 0) {
+      gen_NASM_code(syntax_tree, result_file);
+    }
+    else {
+      error("the resulting file must have a supported file extension");
+    }
   }
   else {
     error("program is not valid");
@@ -65,6 +76,7 @@ int main(int argc, char ** argv) {
   float time;
   start = clock();
 
+  // TODO: improve cmd args handling
   char * code = argv[1];
   char * out_file = argv[2];
 
@@ -75,7 +87,7 @@ int main(int argc, char ** argv) {
   time = ((float) (end - start)) / CLOCKS_PER_SEC;
   printf("\n#######\ntime: %f\n", time);
 
-  printf("compilation finnished succesfully\n");
+  printf("compilation finnished succesfully");
 
   return 0;
 }

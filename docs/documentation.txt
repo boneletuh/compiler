@@ -1,16 +1,21 @@
-to use the compiler in a terminal write:
- compiler [input file path] [output file path]
+How to use:
+ To use the compiler in a terminal write:
+  compiler [input file path] [output file path]
+ the output file path extension must be:
+    ".c" to generate C code or
+    ".asm" to generate NASM code
+ otherwise it will throw an error and not compile the code
 
+Operators:
+ associativity is allways left to right
+ the binary operator precedence are:
+  +	0
+  -	0
+  %	1
+  *	2
+  /	2
+  ^	3
 
-associativity is allways left to right
-the binary operator precedence are:
- +	0
- -	0
- %	1
- *	2
- /	2
- ^	3
-
-
-you can not declare two variables with the same name
-you can not use a variable wich has not been declared
+Variables:
+ you can not declare two variables with the same name
+ you can not use a variable wich has not been declared

@@ -1,6 +1,6 @@
 # compiler
-my first attempt in making a compiler.
+My first attempt in making a compiler.
 
-It compiles to C
+It can compile to C and NASM assembly
 
-It requires to have GCC
+you will have to compile the resulting code on your own
