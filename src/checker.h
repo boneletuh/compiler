@@ -6,18 +6,6 @@
 #include "tokenizer.h"
 #include "parser.h"
 
-bool compare_str_of_tokens(Token token1, Token token2) {
-  if (token1.length != token2.length) {
-    return false;
-  }
-  for (int i = 0; i < token1.length; i++) {
-    if (token1.beginning[i] != token2.beginning[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
 // checkes if the token is int list of tokens
 bool is_var_in_var_list(Token * var_list, int var_list_size, Token variable) {
   for (int i = 0; i < var_list_size; i++) {
@@ -57,11 +45,8 @@ bool is_valid_program(Node_Program program) {
         error("variable already declared");
       }
       else {
-        var_list_size += 1;
-        var_list = realloc(var_list, var_list_size * sizeof(Token));
-        if (var_list == NULL) {
-          allocation_error("could not allocate memory for variable tracker list");
-        }
+        var_list_size++;
+        var_list = srealloc(var_list, var_list_size * sizeof(Token));
         var_list[var_list_size -1] = variable;
       }
       // check that when using a var it has been declared before

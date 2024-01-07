@@ -17,10 +17,6 @@ typedef struct Token {
   } type;
 } Token;
 
-void add_token_to_file(FILE * file_ptr, Token token) {
-  fprintf(file_ptr, "%.*s", token.length, token.beginning);
-}
-
 bool is_in_str(char symbol, const char * string) {
   // TODO: add look up table for O(1) time
   for (int i = 0; string[i] != '\0'; i++) {
@@ -58,17 +54,17 @@ Token * lexer(char * string) {
         token_beginning = i;
         if (is_in_str(simbol, var_sym)) {
           mode = identifier;
-          i -= 1;
+          i--;
         }
 
         else if (is_in_str(simbol, numb_sym)) {
           mode = number;
-          i -= 1;
+          i--;
         }
 
         else if (is_in_str(simbol, oper_sym)) {
           mode = operation;
-          i -= 1;
+          i--;
         }
 
         // deal here with sigle symbol tokens
@@ -124,10 +120,7 @@ Token * lexer(char * string) {
         new_token.length = (unsigned short) (i - token_beginning);
 
         // add token to token_array
-        Token * new_token_array = realloc(token_array, sizeof(Token) * (token_count + 1));
-        if (new_token_array == NULL) { 
-          allocation_error("can not allocate memory for new token");
-        }
+        Token * new_token_array = srealloc(token_array, sizeof(Token) * (token_count + 1));
 
         token_array = new_token_array;
 
@@ -156,10 +149,7 @@ Token * lexer(char * string) {
     new_token.length = (unsigned short) (i - token_beginning);
 
     // add token to token_array
-    Token * new_token_array = realloc(token_array, sizeof(Token) * (token_count + 1));
-    if (new_token_array == NULL) { 
-      allocation_error("can not allocate memory for last token");
-    }
+    Token * new_token_array = srealloc(token_array, sizeof(Token) * (token_count + 1));
 
     token_array = new_token_array;
 
@@ -170,10 +160,7 @@ Token * lexer(char * string) {
     token_count += 1;
   }
   // add EOF token to the end of token array
-  Token * new_token_array = realloc(token_array, sizeof(Token) * (token_count + 1));
-  if (new_token_array == NULL) { 
-    allocation_error("can not allocate memory for EOF token");
-  }
+  Token * new_token_array = srealloc(token_array, sizeof(Token) * (token_count + 1));
 
   token_array = new_token_array;
 
@@ -199,5 +186,18 @@ bool compare_token_to_string(Token token, const char * string) {
     return false;
   }
 }
+
+bool compare_str_of_tokens(Token token1, Token token2) {
+  if (token1.length != token2.length) {
+    return false;
+  }
+  for (int i = 0; i < token1.length; i++) {
+    if (token1.beginning[i] != token2.beginning[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 
 #endif
