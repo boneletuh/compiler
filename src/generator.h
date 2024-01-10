@@ -138,7 +138,71 @@ void gen_NASM_expresion(FILE * file_ptr, Node_Expresion expresion, int stack_siz
     add_string_to_file(file_ptr, "], rax\n");
   }
   else if (expresion.expresion_type == expresion_binary_operation_type) {
-    implementation_error("sorry no recursive expresions for asm ºnº");
+    // put left hand side expresion into stack top
+    stack_size += 8;
+    gen_NASM_expresion(file_ptr, expresion.expresion_value.expresion_binary_operation_value->left_side, stack_size, vars);
+    // put also the right side into the stack
+    stack_size += 8;
+    gen_NASM_expresion(file_ptr, expresion.expresion_value.expresion_binary_operation_value->right_side, stack_size, vars);
+    // load the first operand
+    add_string_to_file(file_ptr, "mov rax, QWORD [rbp - ");
+    fprintf(file_ptr, "%d", stack_size);
+    add_string_to_file(file_ptr, "]\n");
+    // load the second operand
+    add_string_to_file(file_ptr, "mov rbx, QWORD [rbp - ");
+    fprintf(file_ptr, "%d", stack_size+8);
+    add_string_to_file(file_ptr, "]\n");
+    // perform the corresponding binary operation
+    switch (expresion.expresion_value.expresion_binary_operation_value->operation_type) {
+      case binary_operation_sum_type:
+        // add them together
+        add_string_to_file(file_ptr, "add rax, rbx\n");
+        // put the result into the stack top
+        add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+        fprintf(file_ptr, "%d", stack_size-8);
+        add_string_to_file(file_ptr, "], rax\n");
+        break;
+      case binary_operation_sub_type:
+        // substruct them
+        add_string_to_file(file_ptr, "sub rax, rbx\n");
+        // put the result in stack topo
+        add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+        fprintf(file_ptr, "%d", stack_size-8);
+        add_string_to_file(file_ptr, "], rax\n");
+        break;
+      case binary_operation_mul_type:
+        // multiply them
+        add_string_to_file(file_ptr, "mul rbx\n"); // NOTE: this changes rdx
+        // put the result in stack top
+        add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+        fprintf(file_ptr, "%d", stack_size-8);
+        add_string_to_file(file_ptr, "], rax\n");
+        break;
+      case binary_operation_div_type:
+        // set rdx to 0 because the dividend is the extended register rdx:rax
+        add_string_to_file(file_ptr, "mov rdx, 0\n");
+        // divide them
+        add_string_to_file(file_ptr, "div rbx\n");
+        // put the result in stack top
+        add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+        fprintf(file_ptr, "%d", stack_size-8);
+        add_string_to_file(file_ptr, "], rax\n");
+        break;
+      case binary_operation_mod_type:
+        // set rdx to 0 because the 'dividend' is the extended register rdx:rax
+        add_string_to_file(file_ptr, "mov rdx, 0\n");
+        // perform the modulo
+        add_string_to_file(file_ptr, "div rbx\n");
+        // put the result in stack top
+        add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+        fprintf(file_ptr, "%d", stack_size-8);
+        add_string_to_file(file_ptr, "], rdx\n");
+        break;
+      // TODO: add the ^ operator
+      default:
+        // this operation has not been added yet or was not filtered by the checker
+        implementation_error("unkown operation type while code generation");
+    }
   }
   else {
     implementation_error("unexpected type in expresion");
@@ -154,9 +218,6 @@ void gen_NASM_code(Node_Program syntax_tree, char * out_file_name) {
   variables.var_stack_size = 0;
   variables.var_stack_places_list = malloc(variables.var_stack_size * sizeof(int));
   variables.var_stack_tokens_list = malloc(variables.var_stack_size * sizeof(Token));
-  //int var_stack_size = 0;
-  //int * var_stack_places_list = malloc(var_stack_size * sizeof(int));
-  //Token * var_stack_tokens_list = malloc(var_stack_size * sizeof(Token));
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
     if (node.statement_type == var_declaration_type) {
