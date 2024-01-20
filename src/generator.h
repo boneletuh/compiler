@@ -19,7 +19,7 @@ void add_token_to_file(FILE * file_ptr, Token token) {
 }
 
 void add_string_to_file(FILE * file_ptr, char * string) {
-  fprintf(file_ptr, string);
+  fputs(string, file_ptr);
 }
 
 /* * * * * * * * * * *
@@ -48,7 +48,7 @@ void gen_C_expresion(Node_Expresion expresion, FILE * file_ptr) {
       add_string_to_file(file_ptr, " / ");
     }
     else if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_mod_type) {
-      add_string_to_file(file_ptr, " %% ");
+      add_string_to_file(file_ptr, " % ");
     }
     else if (expresion.expresion_value.expresion_binary_operation_value->operation_type == binary_operation_exp_type) {
       //add_string_to_file(file_ptr, " ^ ");
@@ -83,6 +83,13 @@ void gen_C_code(Node_Program syntax_tree, char * out_file_name) {
       add_string_to_file(out_file_ptr, " exit(");
       gen_C_expresion(node.statement_value.exit_node.exit_code, out_file_ptr);
       add_string_to_file(out_file_ptr, ")");
+    }
+    else if (node.statement_type == var_assignment_type) {
+      // var assignment node
+      add_string_to_file(out_file_ptr, " ");
+      add_token_to_file(out_file_ptr, node.statement_value.var_assignment.var_name);
+      add_string_to_file(out_file_ptr, " = ");
+      gen_C_expresion(node.statement_value.var_assignment.value, out_file_ptr);
     }
     else {
       implementation_error("undefined node statement type");
@@ -242,6 +249,17 @@ void gen_NASM_code(Node_Program syntax_tree, char * out_file_name) {
     }
     else if (node.statement_type == exit_node_type) {
       implementation_error("exit, need syscall here");
+    }
+    else if (node.statement_type == var_assignment_type) {
+      gen_NASM_expresion(out_file_ptr, node.statement_value.var_assignment.value, stack_size, variables);
+      // get the variable from the top of the stack into rax
+      add_string_to_file(out_file_ptr, "mov rax, QWORD [rbp - ");
+      fprintf(out_file_ptr, "%d", stack_size+8); // add 8 because the value is above the stack top
+      add_string_to_file(out_file_ptr, "]\n");
+      // assign the value of the expresion from the stack
+      add_string_to_file(out_file_ptr, "mov QWORD [rbp - ");
+      fprintf(out_file_ptr, "%d", find_var_stack_place(variables, node.statement_value.var_assignment.var_name));
+      add_string_to_file(out_file_ptr, "], rax"); // rax has the result of the expresion
     }
     else {
       implementation_error("undefined node statement type");
