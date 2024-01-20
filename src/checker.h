@@ -49,12 +49,22 @@ bool is_valid_program(Node_Program program) {
         var_list = srealloc(var_list, var_list_size * sizeof(Token));
         var_list[var_list_size -1] = variable;
       }
-      // check that when using a var it has been declared before
+      // check that the expresion in the statement is valid
       Node_Expresion expresion = statement.statement_value.var_declaration.value;
       is_expresion_valid(var_list, var_list_size, expresion);
     }
     else if (statement.statement_type == exit_node_type) {
       Node_Expresion expresion = statement.statement_value.exit_node.exit_code;
+      is_expresion_valid(var_list, var_list_size, expresion);
+    }
+    else if (statement.statement_type == var_assignment_type) {
+      // check that when assignmening to a var there is another var with the same name
+      Token variable = statement.statement_value.var_assignment.var_name;
+      if (!is_var_in_var_list(var_list, var_list_size, variable)) {
+        error("variable has not been declared before");
+      }
+      // check that the expresion is good
+      Node_Expresion expresion = statement.statement_value.var_assignment.value;
       is_expresion_valid(var_list, var_list_size, expresion);
     }
     else {

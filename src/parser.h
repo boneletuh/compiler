@@ -45,14 +45,21 @@ typedef struct Node_Var_declaration {
   Node_Expresion value;
 } Node_Var_declaration;
 
+typedef struct Node_Var_assignment {
+  Token var_name;
+  Node_Expresion value;
+} Node_Var_assignment;
+
 typedef struct Node_Statement {
   union {
     Node_Var_declaration var_declaration;
     Node_Exit exit_node;
+    Node_Var_declaration var_assignment;
   } statement_value;
   enum {
     var_declaration_type,
-    exit_node_type
+    exit_node_type,
+    var_assignment_type
   } statement_type;
 } Node_Statement;
 
@@ -192,6 +199,21 @@ Node_Program parser(Token * tokens) {
       new_tree[statements_num -1].statement_type = var_declaration_type;
       new_tree[statements_num -1].statement_value.var_declaration.var_name = var_name;
       new_tree[statements_num -1].statement_value.var_declaration.value = parse_expresion(&tokens[expresion_beginning], expresion_size);
+      result_tree.statements_node = new_tree;
+    }
+    else if (compare_token_to_string(tokens[i + 1], "=")) {
+      if (tokens[i].type != Identifier) {
+        error("expected an identifier in variable assigment");
+      }
+      Token var_name = tokens[i];
+      // get the number of tokens in the expresion, we add 2 to skip the var name, the "="
+      int expresion_beginning = i +2;
+      // FIX: improve this loop, it is very unsafe
+      while (tokens[i].type != Semi_colon) i++;
+      int expresion_size = i - expresion_beginning;
+      new_tree[statements_num -1].statement_type = var_assignment_type;
+      new_tree[statements_num -1].statement_value.var_assignment.var_name = var_name;
+      new_tree[statements_num -1].statement_value.var_assignment.value = parse_expresion(&tokens[expresion_beginning], expresion_size);
       result_tree.statements_node = new_tree;
     }
     else {
