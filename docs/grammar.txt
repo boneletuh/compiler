@@ -16,6 +16,7 @@ Binary_operation = Expresion, operator, Expresion ;
 Progamm = {Statement} ;
 
 Statement = (identifier, ":", "=", Expresion ";") |
-            ("exit", Expresion, ";");
+            (identifier, "=", Expresion ";") |
+            ("exit", Expresion, ";") ;
 
-Expresion = number | identifier | Binary_operation;
+Expresion = number | identifier | Binary_operation ;
