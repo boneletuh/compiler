@@ -50,16 +50,24 @@ typedef struct Node_Var_assignment {
   Node_Expresion value;
 } Node_Var_assignment;
 
+
+typedef struct Node_Scope {
+  struct Node_Statement * statements_node;
+  int statements_count;
+} Node_Scope;
+
 typedef struct Node_Statement {
   union {
     Node_Var_declaration var_declaration;
     Node_Exit exit_node;
     Node_Var_declaration var_assignment;
+    Node_Scope scope;
   } statement_value;
   enum {
     var_declaration_type,
     exit_node_type,
-    var_assignment_type
+    var_assignment_type,
+    scope_type
   } statement_type;
 } Node_Statement;
 
@@ -67,6 +75,9 @@ typedef struct Node_Program {
   Node_Statement * statements_node;
   int statements_count;
 } Node_Program;
+
+Node_Program parser(Token * tokens);
+Node_Scope parse_scope(Token * tokens, int tokens_count);
 
 // convert the string of a operation token into a enum that is more manageable form
 // TODO: see if using a hashtable would be faster 
@@ -164,6 +175,22 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
   return result;
 }
 
+// parse a scope the same way as a program
+Node_Scope parse_scope(Token * tokens, int tokens_count) {
+  Token * new_tokens = smalloc((tokens_count + 1) * sizeof(Token)); // add 1 for space of the EOF token
+  // add EOF token so it can be parse tha same way as a program
+  new_tokens[tokens_count] = (Token) {  .beginning = NULL,
+                                        .length = 0,
+                                        .type = End_of_file
+                                    };
+  memcpy(new_tokens, tokens, tokens_count * sizeof(Token));
+  Node_Program temp_program = parser(new_tokens);
+  Node_Scope scope;
+  scope.statements_count = temp_program.statements_count;
+  scope.statements_node = temp_program.statements_node;
+  return scope;
+}
+
 // parses the tokens into a syntax tree
 Node_Program parser(Token * tokens) {
   Node_Program result_tree;
@@ -215,6 +242,26 @@ Node_Program parser(Token * tokens) {
       new_tree[statements_num -1].statement_value.var_assignment.var_name = var_name;
       new_tree[statements_num -1].statement_value.var_assignment.value = parse_expresion(&tokens[expresion_beginning], expresion_size);
       result_tree.statements_node = new_tree;
+    }
+    else if (compare_token_to_string(tokens[i], "{")) {
+      int scope_count = 1; // counter of nested scopes to allow recursion
+      int j = i;
+      // match the beginning of the scope with its ending
+      while (scope_count != 0) {
+        if (tokens[j].type == End_of_file) {
+          error("unmatched open curly bracket");
+        }
+        j++;
+        if (tokens[j].type == Curly_bracket) {
+          if (compare_token_to_string(tokens[j], "{")) scope_count++;
+          if (compare_token_to_string(tokens[j], "}")) scope_count--;
+        }
+      }
+      Node_Scope scope = parse_scope(&tokens[i + 1], j - i -1); // add and substruct 1 to avoid the original { }
+      new_tree[statements_num -1].statement_type = scope_type;
+      new_tree[statements_num -1].statement_value.scope = scope;
+      result_tree.statements_node = new_tree;
+      i = j;
     }
     else {
       error("unkown statement type");
