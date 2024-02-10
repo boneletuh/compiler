@@ -13,10 +13,13 @@ operator = "+" | "-" | "*" | "/" ;
 
 Binary_operation = Expresion, operator, Expresion ;
 
+Scope = "{", {Stataments}, "}" ;
+
 Progamm = {Statement} ;
 
 Statement = (identifier, ":", "=", Expresion ";") |
             (identifier, "=", Expresion ";") |
-            ("exit", Expresion, ";") ;
+            ("exit", Expresion, ";") |
+            (Scope) ;
 
 Expresion = number | identifier | Binary_operation ;

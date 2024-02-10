@@ -19,23 +19,27 @@ void free_expresion(Node_Expresion expresion) {
 // frees all the allocated memory
 void free_all_memory(char * code, Token * tokens, Node_Program syntax_tree) {
   free(code);
-  printf("code freed\n");
   free(tokens);
-  printf("tokens freed\n");
   // free the expresions of the program recursively
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
-    if (node.statement_type == var_declaration_type) {
-      // var declaration node
-      free_expresion(node.statement_value.var_declaration.value);
-    }
-    else if (node.statement_type == exit_node_type) {
-      // exit node
-      free_expresion(node.statement_value.exit_node.exit_code);
+    switch (node.statement_type) {
+      case var_declaration_type:
+        // var declaration node
+        free_expresion(node.statement_value.var_declaration.value);
+        break;
+      case exit_node_type:
+        // exit node
+        free_expresion(node.statement_value.exit_node.exit_code);
+        break;
+      case scope_type:
+        free(node.statement_value.scope.statements_node);
+        // FIX: free the memory of the statemets inside the scope
+        break;
     }
   }
   free(syntax_tree.statements_node);
-  printf("syntax tree freed\n");
+  printf("memory freed");
 }
 
 void compile(char * source_code_file, char * result_file) {
@@ -44,11 +48,11 @@ void compile(char * source_code_file, char * result_file) {
   char * code = file_contents(file);
 
   Token * tokens = lexer(code);
+
   Node_Program syntax_tree = parser(tokens);
+
   if (is_valid_program(syntax_tree)) {
-    printf("program is valid\n");
     char * extension = get_file_extension(result_file);
-    printf("extension: (%s)\n", extension);
     if (strcmp(extension, ".c") == 0) {
       gen_C_code(syntax_tree, result_file);
     }
@@ -56,14 +60,13 @@ void compile(char * source_code_file, char * result_file) {
       gen_NASM_code(syntax_tree, result_file);
     }
     else {
-      error("the resulting file must have a supported file extension");
+      error("the output file must have a supported file extension");
     }
   }
   else {
     error("program is not valid");
   }
-
-  // free all the memory
+  // free all the memory ºOº
   free_all_memory(code, tokens, syntax_tree);
 }
 
@@ -72,9 +75,7 @@ int main(int argc, char ** argv) {
     error("invalid number of cmd arguments, you must write:\n  compiler [input file path] [output file path]");
   }
   // start clock
-  clock_t start, end;
-  float time;
-  start = clock();
+  clock_t start = clock();
 
   // TODO: improve cmd args handling
   char * code = argv[1];
@@ -83,11 +84,10 @@ int main(int argc, char ** argv) {
   compile(code, out_file);
 
   // time it
-  end = clock();
-  time = ((float) (end - start)) / CLOCKS_PER_SEC;
+  float time = ((float) (clock() - start)) / CLOCKS_PER_SEC;
   printf("\n#######\ntime: %f\n", time);
 
-  printf("compilation finnished succesfully");
+  printf("compilation ended");
 
   return 0;
 }

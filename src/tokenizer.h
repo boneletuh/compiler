@@ -13,6 +13,7 @@ typedef struct Token {
     Operation,
     Colon,
     Semi_colon,
+    Curly_bracket,
     End_of_file
   } type;
 } Token;
@@ -27,6 +28,7 @@ bool is_in_str(char symbol, const char * string) {
   return false;
 }
 
+// TODO: add linked list for O(1) time when appending tokens
 Token * lexer(char * string) {
   typedef enum {
     searching_token,
@@ -76,6 +78,11 @@ Token * lexer(char * string) {
         else if (simbol == ';') {
           mode = add_token;
           new_token.type = Semi_colon;
+        }
+
+        else if (simbol == '{' || simbol == '}') {
+          mode = add_token;
+          new_token.type = Curly_bracket;
         }
         // throw error if the symbol is not allowed
         else if (!is_in_str(simbol, separ_sym)) {
