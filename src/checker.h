@@ -121,6 +121,15 @@ void check_statement(Vars_list * variables, Node_Statement stmt) {
     }
     free_vars_list(scope_vars);
   }
+  else if (stmt.statement_type == if_type) {
+    Node_Expresion condition = stmt.statement_value.if_node.condition;
+    is_expresion_valid(*variables, condition);
+    Vars_list scope_vars = copy_vars_list(*variables);
+    for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
+      check_statement(&scope_vars, stmt.statement_value.if_node.scope.statements_node[i]);
+    }
+    free_vars_list(scope_vars);
+  }
   else {
     implementation_error("generating this statement is not implemented");
   }
