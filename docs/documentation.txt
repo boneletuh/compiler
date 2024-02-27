@@ -29,10 +29,17 @@ Variables:
    var_name = expr;
  The variable must hav been declared to assign a value to it
 
-Scopes:
+-Scopes:
  -Syntax:
    "{" + staments + "}"
   Scopes without staments are valid
  All the variables declared inside a scope will be delete when the scope ends
  Declaring a variable with the same name as another outside the scope is not allowed
  Scopes can be recursive
+
+-Conditionals:
+ -Syntax:
+   "if" + condition + scope
+ The scope must be a valid scope
+ The result of the condition expression will be treated as a boolean value;
+ if it is 0 the scope will not be executed otherwise it will

@@ -13,12 +13,14 @@ operator = "+" | "-" | "*" | "/" ;
 
 Binary_operation = Expresion, operator, Expresion ;
 
-Scope = "{", {Stataments}, "}" ;
+Scope = "{", {Statement}, "}" ;
 
 Progamm = {Statement} ;
 
-Statement = (identifier, ":", "=", Expresion ";") |
-            (identifier, "=", Expresion ";") |
+If = "if", Expresion, Scope ;
+
+Statement = (identifier, ":", "=", Expresion, ";") |
+            (identifier, "=", Expresion, ";") |
             ("exit", Expresion, ";") |
             (Scope) ;
 
