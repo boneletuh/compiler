@@ -40,6 +40,10 @@ typedef struct Node_Exit {
   Node_Expresion exit_code;
 } Node_Exit;
 
+typedef struct Node_Print {
+  Node_Expresion chr;
+} Node_Print;
+
 typedef struct Node_Var_declaration {
   Token var_name;
   Node_Expresion value;
@@ -61,6 +65,11 @@ typedef struct Node_If {
   Node_Scope scope;
 } Node_If;
 
+typedef struct Node_While {
+  Node_Expresion condition;
+  Node_Scope scope;
+} Node_While;
+
 typedef struct Node_Statement {
   union {
     Node_Var_declaration var_declaration;
@@ -68,13 +77,17 @@ typedef struct Node_Statement {
     Node_Var_declaration var_assignment;
     Node_Scope scope;
     Node_If if_node;
+    Node_Print print;
+    Node_While while_node;
   } statement_value;
   enum {
     var_declaration_type,
     exit_node_type,
     var_assignment_type,
     scope_type,
-    if_type
+    if_type,
+    print_type,
+    while_type
   } statement_type;
 } Node_Statement;
 
@@ -219,6 +232,16 @@ Node_Program parser(Token * tokens) {
       new_tree[statements_num -1].statement_value.exit_node.exit_code = parse_expresion(&tokens[expresion_beginning], expresion_size);
       result_tree.statements_node = new_tree;
     }
+    else if (compare_token_to_string(tokens[i], "print")) {
+      // get the number of tokens in the expresion, we add 1 to skip the "exit"
+      int expresion_beginning = i +1;
+      // FIX: improve this loop, it is very unsafe
+      while (tokens[i].type != Semi_colon) i++; 
+      int expresion_size = i - expresion_beginning;
+      new_tree[statements_num -1].statement_type = print_type;
+      new_tree[statements_num -1].statement_value.print.chr = parse_expresion(&tokens[expresion_beginning], expresion_size);
+      result_tree.statements_node = new_tree;
+    }
     // FIX: this would crash if there is an identifier at the end of the file
     else if (compare_token_to_string(tokens[i + 1], ":") && compare_token_to_string(tokens[i + 2], "=")) {
       if (tokens[i].type != Identifier) {
@@ -295,6 +318,34 @@ Node_Program parser(Token * tokens) {
       Node_If node_if = (Node_If) {.condition = condition, scope = scope};
       new_tree[statements_num -1].statement_type = if_type;
       new_tree[statements_num -1].statement_value.if_node = node_if;
+      result_tree.statements_node = new_tree;
+      i = j;
+    }
+    else if (compare_token_to_string(tokens[i], "while")) {
+      Node_Expresion condition;
+      Token * expr = &tokens[i + 1];
+      int expr_sz = i + 1;
+      do { i++; } while (tokens[i].type != Curly_bracket);
+      expr_sz = i - expr_sz;
+      condition = parse_expresion(expr, expr_sz);
+
+      int scope_count = 1; // counter of nested scopes to allow recursion
+      int j = i;
+      // match the beginning of the scope with its ending
+      while (scope_count != 0) {
+        if (tokens[j].type == End_of_file) {
+          error("unmatched open curly bracket");
+        }
+        j++;
+        if (tokens[j].type == Curly_bracket) {
+          if (compare_token_to_string(tokens[j], "{")) scope_count++;
+          if (compare_token_to_string(tokens[j], "}")) scope_count--;
+        }
+      }
+      Node_Scope scope = parse_scope(&tokens[i + 1], j - i -1);
+      Node_While node_while = (Node_While) {.condition = condition, scope = scope};
+      new_tree[statements_num -1].statement_type = while_type;
+      new_tree[statements_num -1].statement_value.while_node = node_while;
       result_tree.statements_node = new_tree;
       i = j;
     }

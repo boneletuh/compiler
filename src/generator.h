@@ -96,6 +96,13 @@ void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
       add_string_to_file(out_file_ptr, ")");
       break;
 
+      case print_type:
+      // exit node
+      add_string_to_file(out_file_ptr, " printf(\"%c\", ");
+      gen_C_expresion(stmt.statement_value.print.chr, out_file_ptr);
+      add_string_to_file(out_file_ptr, "&0xff)");
+      break;
+
     case var_assignment_type:
       // var assignment node
       add_string_to_file(out_file_ptr, " ");
@@ -122,6 +129,17 @@ void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
       add_string_to_file(out_file_ptr, " }");
       break;
 
+    case while_type:
+      // if node
+      // generate the condition
+      add_string_to_file(out_file_ptr, " while ( ");
+      gen_C_expresion(stmt.statement_value.while_node.condition, out_file_ptr);
+      // generate the scope
+      add_string_to_file(out_file_ptr, " ) {\n");
+      gen_C_scope(stmt.statement_value.while_node.scope, out_file_ptr);
+      add_string_to_file(out_file_ptr, " }");
+      break;
+
     default:
       implementation_error("undefined node statement type");
       break;
@@ -138,7 +156,7 @@ void gen_C_scope(const Node_Scope scope, FILE * out_file_ptr) {
 // it generates C code
 void gen_C_code(const Node_Program syntax_tree, char * out_file_name) {
   FILE * out_file_ptr = create_file(out_file_name);
-  add_string_to_file(out_file_ptr, "#include <stdlib.h>\nvoid main() {\n");
+  add_string_to_file(out_file_ptr, "#include <stdlib.h>\n#include <stdio.h>\nvoid main() {\n");
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
     gen_C_statement(node, out_file_ptr);
@@ -370,17 +388,18 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       break;
 
     case if_type:;
-      // generate the condition
-      Node_Expresion condition = stmt.statement_value.if_node.condition;
-      gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
+      { // generate the condition
+       Node_Expresion condition = stmt.statement_value.if_node.condition;
+       gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
+      }
       // if the condition is not true skip the if body
       add_string_to_file(out_file_ptr, "mov rax, QWORD [rbp - ");
       fprintf(out_file_ptr, "%d", *stack_size+8);
       add_string_to_file(out_file_ptr, "]\n");
       add_string_to_file(out_file_ptr, "test rax, rax\n");
-      add_string_to_file(out_file_ptr, "jz ");
       int if_uid = uuids; // save the uid in case it gets modified in the scope
-      fprintf(out_file_ptr, ".IF%d\n", if_uid);
+      uuids++;
+      fprintf(out_file_ptr, "jz .IF%d\n", if_uid);
 
       // generate the scope
       {
@@ -394,6 +413,38 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       }
 
       fprintf(out_file_ptr, ".IF%d:\n", if_uid); // generate the label
+      break;
+
+    case while_type:;
+      int while_uid = uuids; // save the uid in case it gets modified in the scope
+      uuids++;
+      // generate the label for repeating the loop
+      fprintf(out_file_ptr, ".WHB%d:\n", while_uid); // WHB is for "while beginning"
+      { // generate the condition
+       Node_Expresion condition = stmt.statement_value.if_node.condition;
+       gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
+      }
+      // if the condition is not true skip the while body
+      add_string_to_file(out_file_ptr, "mov rax, QWORD [rbp - ");
+      fprintf(out_file_ptr, "%d", *stack_size+8);
+      add_string_to_file(out_file_ptr, "]\n");
+      add_string_to_file(out_file_ptr, "test rax, rax\n");
+      fprintf(out_file_ptr, "jz .WHE%d\n", while_uid); // WHE is for "while end"
+
+
+      // generate the scope
+      {
+       Scopes_List temp_scopes = NASM_copy_scopes_list(*variables);
+       //NASM_create_scope(&temp_scopes);
+       int temp_stack_size = *stack_size;
+       for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
+         gen_NASM_statement(out_file_ptr, &temp_scopes, stmt.statement_value.if_node.scope.statements_node[i], &temp_stack_size);
+       }
+       free_scopes_list(temp_scopes);
+      }
+
+      fprintf(out_file_ptr, "jmp .WHB%d\n", while_uid);
+      fprintf(out_file_ptr, ".WHE%d:\n", while_uid); // generate the label for finnishing the while loop
       break;
 
     default:

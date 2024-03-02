@@ -19,9 +19,16 @@ Progamm = {Statement} ;
 
 If = "if", Expresion, Scope ;
 
+While = "while", Expresion, Scope ;
+
+Print = "print", Expresion ;
+
 Statement = (identifier, ":", "=", Expresion, ";") |
             (identifier, "=", Expresion, ";") |
             ("exit", Expresion, ";") |
-            (Scope) ;
+            Scope |
+            If |
+            While |
+            Print ;
 
 Expresion = number | identifier | Binary_operation ;

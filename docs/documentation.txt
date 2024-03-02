@@ -43,3 +43,18 @@ Variables:
  The scope must be a valid scope
  The result of the condition expression will be treated as a boolean value;
  if it is 0 the scope will not be executed otherwise it will
+
+-Loops:
+ -While:
+  -Syntax:
+   "while" + condition + scope
+  The value of the condition will be treated as boolean
+  the scope will execute while the condition returns true
+
+-Input/Output:
+ The IO is not standardized yet
+ -printing:
+   this only works for targetting C compilation
+   -Syntax:
+     "print" + expr + ";"
+   evaluates the expression and the lower 8 bits of the value will be printed using printf()
