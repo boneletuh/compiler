@@ -53,8 +53,13 @@ Variables:
 
 -Input/Output:
  The IO is not standardized yet
- -printing:
+ -Printing:
    this only works for targetting C compilation
    -Syntax:
      "print" + expr + ";"
    evaluates the expression and the lower 8 bits of the value will be printed using printf()
+
+-Exiting:
+ -Syntax:
+  "exit" + expr + ";"
+ The program will end when this statement is executed, returning the expr as an exit code

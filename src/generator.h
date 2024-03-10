@@ -360,7 +360,13 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       break;
 
     case exit_node_type:
-      implementation_error("exit, need syscall here");
+      // NOTE: this only works for unix-like OSes
+      gen_NASM_expresion(out_file_ptr, stmt.statement_value.exit_node.exit_code, *stack_size, *variables);
+      add_string_to_file(out_file_ptr, "mov rax, 60\n");
+      add_string_to_file(out_file_ptr, "mov rdi, QWORD [rbp - ");
+      fprintf(out_file_ptr, "%d", *stack_size+8);
+      add_string_to_file(out_file_ptr, "]\n");
+      add_string_to_file(out_file_ptr, "syscall\n");
       break;
 
     case var_assignment_type:
@@ -387,7 +393,7 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       }
       break;
 
-    case if_type:;
+    case if_type:
       { // generate the condition
        Node_Expresion condition = stmt.statement_value.if_node.condition;
        gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
@@ -446,6 +452,18 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       fprintf(out_file_ptr, "jmp .WHB%d\n", while_uid);
       fprintf(out_file_ptr, ".WHE%d:\n", while_uid); // generate the label for finnishing the while loop
       break;
+    
+    case print_type:
+      // NOTE: this only works for unix-like OSes
+      gen_NASM_expresion(out_file_ptr, stmt.statement_value.exit_node.exit_code, *stack_size, *variables);
+      add_string_to_file(out_file_ptr, "lea rsi, [rbp - ");
+      fprintf(out_file_ptr, "%d", *stack_size+8);
+      add_string_to_file(out_file_ptr, "]\n");
+      add_string_to_file(out_file_ptr, "mov rdx, 1\n"); // symbols to print
+      add_string_to_file(out_file_ptr, "mov rdi, 1\n"); // std output
+      add_string_to_file(out_file_ptr, "mov rax, 1\n"); // write syscall
+      add_string_to_file(out_file_ptr, "syscall\n");
+      break;
 
     default:
       implementation_error("undefined node statement type");
@@ -457,7 +475,11 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
 // it generates NASM code
 void gen_NASM_code(const Node_Program syntax_tree, char * out_file_name) {
   FILE * out_file_ptr = create_file(out_file_name);
-  add_string_to_file(out_file_ptr, "bits 64\n\n");
+  add_string_to_file(out_file_ptr, "bits 64\n"); // targeting 64 bits
+  add_string_to_file(out_file_ptr, "global _start\n"); // needed for linking in ELF format
+  add_string_to_file(out_file_ptr, "_start:\n");
+  add_string_to_file(out_file_ptr, "push rbp\n"); // setting up the stack
+  add_string_to_file(out_file_ptr, "mov rbp, rsp\n");
   int stack_size = 0;
 
   // this will hold all the variables from all the scopes
@@ -473,6 +495,8 @@ void gen_NASM_code(const Node_Program syntax_tree, char * out_file_name) {
 
   free_scopes_list(scopes);
 
+  add_string_to_file(out_file_ptr, "pop rbp\n");
+  add_string_to_file(out_file_ptr, "ret\n");
   fclose(out_file_ptr);
 }
 
