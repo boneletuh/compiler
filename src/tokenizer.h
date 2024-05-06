@@ -28,14 +28,21 @@ bool is_in_str(char symbol, const char * string) {
   return false;
 }
 
+
+Token * append_token(Token * tokens, int tokens_count, const Token token) {
+  tokens_count += 1;
+  tokens = srealloc(tokens, sizeof(Token) * (tokens_count + 1));
+  tokens[tokens_count -1] = token;
+  return tokens;
+}
+
 // TODO: add linked list for O(1) time when appending tokens
 Token * lexer(char * string) {
   typedef enum {
     searching_token,
     identifier,
     number,
-    operation,
-    add_token
+    operation
   } State;
   State mode = searching_token;
 
@@ -50,44 +57,68 @@ Token * lexer(char * string) {
   Token new_token;
   int i;
   for (i = 0; string[i] != '\0'; i++) {
-    const char simbol = string[i];
+    const char symbol = string[i];
     switch (mode) {
       case searching_token:
         token_beginning = i;
-        if (is_in_str(simbol, var_sym)) {
+        if (is_in_str(symbol, var_sym)) {
           mode = identifier;
           i--;
         }
 
-        else if (is_in_str(simbol, numb_sym)) {
+        else if (is_in_str(symbol, numb_sym)) {
           mode = number;
           i--;
         }
 
-        else if (is_in_str(simbol, oper_sym)) {
+        else if (is_in_str(symbol, oper_sym)) {
           mode = operation;
           i--;
         }
 
         // deal here with sigle symbol tokens
-        else if (simbol == ':') {
-          mode = add_token;
+        else if (symbol == ':') {
+          new_token.beginning = string + token_beginning;
+          new_token.length = 1;
           new_token.type = Colon;
+
+          // add token to token_array
+          token_array = append_token(token_array, token_count, new_token);
+          token_count++;
+
+          token_beginning = i;
+          mode = searching_token;
         }
 
-        else if (simbol == ';') {
-          mode = add_token;
+        else if (symbol == ';') {
+          new_token.beginning = string + token_beginning;
+          new_token.length = 1;
           new_token.type = Semi_colon;
+
+          // add token to token_array
+          token_array = append_token(token_array, token_count, new_token);
+          token_count++;
+
+          token_beginning = i;
+          mode = searching_token;
         }
 
-        else if (simbol == '{' || simbol == '}') {
-          mode = add_token;
+        else if (symbol == '{' || symbol == '}') {
+          new_token.beginning = string + token_beginning;
+          new_token.length = 1;
           new_token.type = Curly_bracket;
+
+          // add token to token_array
+          token_array = append_token(token_array, token_count, new_token);
+          token_count++;
+
+          token_beginning = i;
+          mode = searching_token;
         }
         // throw error if the symbol is not allowed
-        else if (!is_in_str(simbol, separ_sym)) {
+        else if (!is_in_str(symbol, separ_sym)) {
           // FIX: at the end of the file it sometimes detects the -1 symbol probably because utf-8
-          if (simbol != -1) {
+          if (symbol != -1) {
             implementation_error("unkown type of symbol");
           }
         }
@@ -96,18 +127,37 @@ Token * lexer(char * string) {
       
       case identifier:
         new_token.type = Identifier;
-        if (!is_in_str(simbol, var_sym)) {
-          mode = add_token;
-          i -= 1;
+        if (!is_in_str(symbol, var_sym)) {
+          new_token.beginning = string + token_beginning;
+          new_token.length = (unsigned short) (i - token_beginning);
+          new_token.type = Identifier;
+
+          // add token to token_array
+          token_array = append_token(token_array, token_count, new_token);
+          token_count++;
+
+          token_beginning = i;
+          mode = searching_token;
+          i--;
         }
 
         break;
       
       case number:
         new_token.type = Number;
-        if (!is_in_str(simbol, numb_sym)) {
-          mode = add_token;
-          i -= 1;
+        if (!is_in_str(symbol, numb_sym)) {
+          new_token.beginning = string + token_beginning;
+          new_token.length = (unsigned short) (i - token_beginning);
+          new_token.type = Number;
+
+          // add token to token_array
+          token_array = append_token(token_array, token_count, new_token);
+          token_count++;
+
+          
+          token_beginning = i;
+          mode = searching_token;
+          i--;
         }
 
         break;
@@ -115,35 +165,20 @@ Token * lexer(char * string) {
       case operation:
         new_token.type = Operation;
         // the operation can be longer than 1 symbol
-        if (!is_in_str(simbol, oper_sym)) {
-          mode = add_token;
-          i -= 1;
+        if (!is_in_str(symbol, oper_sym)) {
+          new_token.beginning = string + token_beginning;
+          new_token.length = (unsigned short) (i - token_beginning);
+          new_token.type = Operation;
+
+          // add token to token_array
+          token_array = append_token(token_array, token_count, new_token);
+          token_count++;
+
+          token_beginning = i;
+          mode = searching_token;
+          i--;
         }
 
-        break;
-      
-      case add_token:
-        new_token.beginning = string + token_beginning;
-        new_token.length = (unsigned short) (i - token_beginning);
-
-        // add token to token_array
-        Token * new_token_array = srealloc(token_array, sizeof(Token) * (token_count + 1));
-
-        token_array = new_token_array;
-
-        token_array[token_count] = new_token;
-
-        //this is unnecessary just to clean the new_token
-        new_token.beginning = NULL;
-        new_token.length = 0;
-        new_token.type = End_of_file;
-        
-        // update token beginning
-        token_beginning = i;
-
-        mode = searching_token;
-        i -= 1;
-        token_count += 1;
         break;
 
       default:
@@ -155,25 +190,16 @@ Token * lexer(char * string) {
     new_token.beginning = string + token_beginning;
     new_token.length = (unsigned short) (i - token_beginning);
 
-    // add token to token_array
-    Token * new_token_array = srealloc(token_array, sizeof(Token) * (token_count + 1));
-
-    token_array = new_token_array;
-
-    token_array[token_count].beginning = new_token.beginning;
-    token_array[token_count].length = new_token.length;
-    token_array[token_count].type = new_token.type;
-    
+    token_array = append_token(token_array, token_count, new_token);
     token_count += 1;
   }
   // add EOF token to the end of token array
-  Token * new_token_array = srealloc(token_array, sizeof(Token) * (token_count + 1));
+  new_token.beginning = NULL;
+  new_token.length = 0;
+  new_token.type = End_of_file;
 
-  token_array = new_token_array;
+  token_array = append_token(token_array, token_count, new_token);
 
-  token_array[token_count].beginning = NULL;
-  token_array[token_count].length = 0;
-  token_array[token_count].type = End_of_file;
   return token_array;
 }
 

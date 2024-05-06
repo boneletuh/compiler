@@ -20,7 +20,7 @@ void * smalloc(size_t nbytes) {
 void * srealloc(void * ptr, size_t nbytes) {
   void * new_ptr = realloc(ptr, nbytes);
   if (new_ptr == NULL) {
-    allocation_error("can not allocate memory");
+    allocation_error("can not reallocate memory");
   }
   return new_ptr;
 }
@@ -32,16 +32,16 @@ int file_size(FILE * file) {
   return size;
 }
 
+// returns the bytes of a file and closes it
 char * file_contents(FILE * fptr) {
-  if (fptr == NULL) {
+  if (fptr == NULL)
     file_error("can not open the input code file");
-  }
 
   int size = file_size(fptr);
   char * out = smalloc(size + 1);
-  for (int i = 0; i < size; i++) {
+  for (int i = 0; i < size; i++)
     out[i] = getc(fptr);
-  }
+
   out[size] = '\0';
   
   fclose(fptr); 

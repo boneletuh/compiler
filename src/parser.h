@@ -74,7 +74,7 @@ typedef struct Node_Statement {
   union {
     Node_Var_declaration var_declaration;
     Node_Exit exit_node;
-    Node_Var_declaration var_assignment;
+    Node_Var_assignment var_assignment;
     Node_Scope scope;
     Node_If if_node;
     Node_Print print;
@@ -133,7 +133,7 @@ int get_operation_precedence(Token operation) {
   const char * opers[] = {"+", "-", "%", "*", "/", "^"};
   const int precedes[] = { 0 ,  0 ,  1 ,  2 ,  2 ,  3 };
   // find the idx of the matching string and return the corresponding precedence
-  for (int i = 0; i < sizeof(opers)/sizeof(*opers); i++) {
+  for (unsigned i = 0; i < sizeof(opers)/sizeof(*opers); i++) {
     if (compare_token_to_string(operation, opers[i])) {
       return precedes[i];
     }
@@ -202,12 +202,34 @@ Node_Scope parse_scope(Token * tokens, int tokens_count) {
   new_tokens[tokens_count] = (Token) {  .beginning = NULL,
                                         .length = 0,
                                         .type = End_of_file
-                                    };
+                                     };
   memcpy(new_tokens, tokens, tokens_count * sizeof(Token));
   Node_Program temp_program = parser(new_tokens);
   Node_Scope scope;
   scope.statements_count = temp_program.statements_count;
   scope.statements_node = temp_program.statements_node;
+  return scope;
+}
+
+// tries to parse the scope the ptr points to
+// idx will be updated to the matching '}'
+// idx is a ptr to the index of the first '{' in the tokens
+Node_Scope parse_scope_at(Token * tokens, int * idx) {
+  int scope_count = 1; // counter of nested scopes to allow recursive scopes
+  int i = *idx;
+  // match the beginning of the scope with its ending
+  while (scope_count != 0) {
+    if (tokens[i].type == End_of_file) {
+      error("unmatched open curly bracket");
+    }
+    i++;
+    if (tokens[i].type == Curly_bracket) {
+      if (compare_token_to_string(tokens[i], "{")) scope_count++;
+      if (compare_token_to_string(tokens[i], "}")) scope_count--;
+    }
+  }
+  Node_Scope scope = parse_scope(&tokens[*idx + 1], i - *idx -1); // add and substract 1 to avoid the original { }
+  *idx = i;
   return scope;
 }
 
@@ -274,26 +296,13 @@ Node_Program parser(Token * tokens) {
       result_tree.statements_node = new_tree;
     }
     else if (compare_token_to_string(tokens[i], "{")) {
-      int scope_count = 1; // counter of nested scopes to allow recursion
-      int j = i;
-      // match the beginning of the scope with its ending
-      while (scope_count != 0) {
-        if (tokens[j].type == End_of_file) {
-          error("unmatched open curly bracket");
-        }
-        j++;
-        if (tokens[j].type == Curly_bracket) {
-          if (compare_token_to_string(tokens[j], "{")) scope_count++;
-          if (compare_token_to_string(tokens[j], "}")) scope_count--;
-        }
-      }
-      Node_Scope scope = parse_scope(&tokens[i + 1], j - i -1); // add and substruct 1 to avoid the original { }
+      Node_Scope scope = parse_scope_at(tokens, &i);
       new_tree[statements_num -1].statement_type = scope_type;
       new_tree[statements_num -1].statement_value.scope = scope;
       result_tree.statements_node = new_tree;
-      i = j;
     }
     else if (compare_token_to_string(tokens[i], "if")) {
+      // parse the condition
       Node_Expresion condition;
       Token * expr = &tokens[i + 1];
       int expr_sz = i + 1;
@@ -301,25 +310,12 @@ Node_Program parser(Token * tokens) {
       expr_sz = i - expr_sz;
       condition = parse_expresion(expr, expr_sz);
 
-      int scope_count = 1; // counter of nested scopes to allow recursion
-      int j = i;
-      // match the beginning of the scope with its ending
-      while (scope_count != 0) {
-        if (tokens[j].type == End_of_file) {
-          error("unmatched open curly bracket");
-        }
-        j++;
-        if (tokens[j].type == Curly_bracket) {
-          if (compare_token_to_string(tokens[j], "{")) scope_count++;
-          if (compare_token_to_string(tokens[j], "}")) scope_count--;
-        }
-      }
-      Node_Scope scope = parse_scope(&tokens[i + 1], j - i -1);
+      // parse the if body
+      Node_Scope scope = parse_scope_at(tokens, &i);
       Node_If node_if = (Node_If) {.condition = condition, scope = scope};
       new_tree[statements_num -1].statement_type = if_type;
       new_tree[statements_num -1].statement_value.if_node = node_if;
       result_tree.statements_node = new_tree;
-      i = j;
     }
     else if (compare_token_to_string(tokens[i], "while")) {
       Node_Expresion condition;
@@ -329,25 +325,11 @@ Node_Program parser(Token * tokens) {
       expr_sz = i - expr_sz;
       condition = parse_expresion(expr, expr_sz);
 
-      int scope_count = 1; // counter of nested scopes to allow recursion
-      int j = i;
-      // match the beginning of the scope with its ending
-      while (scope_count != 0) {
-        if (tokens[j].type == End_of_file) {
-          error("unmatched open curly bracket");
-        }
-        j++;
-        if (tokens[j].type == Curly_bracket) {
-          if (compare_token_to_string(tokens[j], "{")) scope_count++;
-          if (compare_token_to_string(tokens[j], "}")) scope_count--;
-        }
-      }
-      Node_Scope scope = parse_scope(&tokens[i + 1], j - i -1);
-      Node_While node_while = (Node_While) {.condition = condition, scope = scope};
+      Node_Scope scope = parse_scope_at(tokens, &i);
+      Node_While node_while = (Node_While) {.condition = condition, .scope = scope};
       new_tree[statements_num -1].statement_type = while_type;
       new_tree[statements_num -1].statement_value.while_node = node_while;
       result_tree.statements_node = new_tree;
-      i = j;
     }
     else {
       error("unkown statement type");

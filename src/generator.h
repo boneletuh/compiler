@@ -13,7 +13,7 @@ FILE * create_file(const char * file_name) {
   return fptr; 
 }
 
-void add_token_to_file(FILE * file_ptr, Token token) {
+void add_token_to_file(FILE * file_ptr, const Token token) {
   fprintf(file_ptr, "%.*s", token.length, token.beginning);
 }
 
@@ -166,6 +166,7 @@ void gen_C_code(const Node_Program syntax_tree, char * out_file_name) {
 }
 
 
+
 /* * * * * * * * * * * *
  * Generating ASM code *
  * * * * * * * * * * * */
@@ -201,7 +202,7 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
   switch (expresion.expresion_type) {
     case expresion_number_type:
       stack_size += 8;
-      add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+      add_string_to_file(file_ptr, "mov qword [rbp - ");
       fprintf(file_ptr, "%d", stack_size);
       add_string_to_file(file_ptr, "], ");
       add_token_to_file(file_ptr, expresion.expresion_value.expresion_number_value.number_token);
@@ -211,11 +212,11 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
     case expresion_identifier_type:
       stack_size += 8;
       // put variable into 'rax'
-      add_string_to_file(file_ptr, "mov rax, QWORD [rbp - ");
+      add_string_to_file(file_ptr, "mov rax, qword [rbp - ");
       fprintf(file_ptr, "%d", find_var_stack_place(vars, expresion.expresion_value.expresion_identifier_value));
       add_string_to_file(file_ptr, "]\n");
       // put rax onto the stack
-      add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+      add_string_to_file(file_ptr, "mov qword [rbp - ");
       fprintf(file_ptr, "%d", stack_size);
       add_string_to_file(file_ptr, "], rax\n");
       break;
@@ -228,11 +229,11 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
       stack_size += 8;
       gen_NASM_expresion(file_ptr, expresion.expresion_value.expresion_binary_operation_value->right_side, stack_size, vars);
       // load the first operand
-      add_string_to_file(file_ptr, "mov rax, QWORD [rbp - ");
+      add_string_to_file(file_ptr, "mov rax, qword [rbp - ");
       fprintf(file_ptr, "%d", stack_size);
       add_string_to_file(file_ptr, "]\n");
       // load the second operand
-      add_string_to_file(file_ptr, "mov rbx, QWORD [rbp - ");
+      add_string_to_file(file_ptr, "mov rbx, qword [rbp - ");
       fprintf(file_ptr, "%d", stack_size+8);
       add_string_to_file(file_ptr, "]\n");
       // perform the corresponding binary operation
@@ -241,7 +242,7 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
           // add them together
           add_string_to_file(file_ptr, "add rax, rbx\n");
           // put the result into the stack top
-          add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+          add_string_to_file(file_ptr, "mov qword [rbp - ");
           fprintf(file_ptr, "%d", stack_size-8);
           add_string_to_file(file_ptr, "], rax\n");
           break;
@@ -250,7 +251,7 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
           // substruct them
           add_string_to_file(file_ptr, "sub rax, rbx\n");
           // put the result in stack topo
-          add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+          add_string_to_file(file_ptr, "mov qword [rbp - ");
           fprintf(file_ptr, "%d", stack_size-8);
           add_string_to_file(file_ptr, "], rax\n");
           break;
@@ -259,29 +260,29 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
           // multiply them
           add_string_to_file(file_ptr, "mul rbx\n"); // NOTE: this changes rdx
           // put the result in stack top
-          add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+          add_string_to_file(file_ptr, "mov qword [rbp - ");
           fprintf(file_ptr, "%d", stack_size-8);
           add_string_to_file(file_ptr, "], rax\n");
           break;
 
         case binary_operation_div_type:
           // set rdx to 0 because the dividend is the extended register rdx:rax
-          add_string_to_file(file_ptr, "mov rdx, 0\n");
+          add_string_to_file(file_ptr, "xor rdx, rdx\n");
           // divide them
           add_string_to_file(file_ptr, "div rbx\n");
           // put the result in stack top
-          add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+          add_string_to_file(file_ptr, "mov qword [rbp - ");
           fprintf(file_ptr, "%d", stack_size-8);
           add_string_to_file(file_ptr, "], rax\n");
           break;
 
         case binary_operation_mod_type:
           // set rdx to 0 because the 'dividend' is the extended register rdx:rax
-          add_string_to_file(file_ptr, "mov rdx, 0\n");
+          add_string_to_file(file_ptr, "xor rdx, rdx\n");
           // perform the modulo
           add_string_to_file(file_ptr, "div rbx\n");
           // put the result in stack top
-          add_string_to_file(file_ptr, "mov QWORD [rbp - ");
+          add_string_to_file(file_ptr, "mov qword [rbp - ");
           fprintf(file_ptr, "%d", stack_size-8);
           add_string_to_file(file_ptr, "], rdx\n");
           break;
@@ -346,13 +347,13 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
     case var_declaration_type:
       gen_NASM_expresion(out_file_ptr, stmt.statement_value.var_declaration.value, *stack_size, *variables);
       // get the variable from the top of the stack into rax
-      add_string_to_file(out_file_ptr, "mov rax, QWORD [rbp - ");
+      add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
       fprintf(out_file_ptr, "%d", *stack_size+8); // add 8 because the value is above the stack top
       add_string_to_file(out_file_ptr, "]\n");
       // allocate space for variable in stack
       *stack_size += 8; // 8 is the size of 64 bit integer
       // assign the value of the expresion from the stack
-      add_string_to_file(out_file_ptr, "mov QWORD [rbp - ");
+      add_string_to_file(out_file_ptr, "mov qword [rbp - ");
       fprintf(out_file_ptr, "%d", *stack_size);
       add_string_to_file(out_file_ptr, "], rax"); // rax has the result of the expresion
       // add the variable to the list of vars
@@ -363,7 +364,7 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       // NOTE: this only works for unix-like OSes
       gen_NASM_expresion(out_file_ptr, stmt.statement_value.exit_node.exit_code, *stack_size, *variables);
       add_string_to_file(out_file_ptr, "mov rax, 60\n");
-      add_string_to_file(out_file_ptr, "mov rdi, QWORD [rbp - ");
+      add_string_to_file(out_file_ptr, "mov rdi, qword [rbp - ");
       fprintf(out_file_ptr, "%d", *stack_size+8);
       add_string_to_file(out_file_ptr, "]\n");
       add_string_to_file(out_file_ptr, "syscall\n");
@@ -372,11 +373,11 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
     case var_assignment_type:
       gen_NASM_expresion(out_file_ptr, stmt.statement_value.var_assignment.value, *stack_size, *variables);
       // get the variable from the top of the stack into rax
-      add_string_to_file(out_file_ptr, "mov rax, QWORD [rbp - ");
+      add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
       fprintf(out_file_ptr, "%d", *stack_size+8); // add 8 because the value is above the stack top
       add_string_to_file(out_file_ptr, "]\n");
       // assign the value of the expresion from the stack
-      add_string_to_file(out_file_ptr, "mov QWORD [rbp - ");
+      add_string_to_file(out_file_ptr, "mov qword [rbp - ");
       fprintf(out_file_ptr, "%d", find_var_stack_place(*variables, stmt.statement_value.var_assignment.var_name));
       add_string_to_file(out_file_ptr, "], rax"); // rax has the result of the expresion
       break;
@@ -399,7 +400,7 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
        gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
       }
       // if the condition is not true skip the if body
-      add_string_to_file(out_file_ptr, "mov rax, QWORD [rbp - ");
+      add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
       fprintf(out_file_ptr, "%d", *stack_size+8);
       add_string_to_file(out_file_ptr, "]\n");
       add_string_to_file(out_file_ptr, "test rax, rax\n");
@@ -431,7 +432,7 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
        gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
       }
       // if the condition is not true skip the while body
-      add_string_to_file(out_file_ptr, "mov rax, QWORD [rbp - ");
+      add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
       fprintf(out_file_ptr, "%d", *stack_size+8);
       add_string_to_file(out_file_ptr, "]\n");
       add_string_to_file(out_file_ptr, "test rax, rax\n");
