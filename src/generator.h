@@ -195,6 +195,8 @@ int find_var_stack_place(const Scopes_List vars_list, const Token var) {
   // couldnt find the variable in the list
   // this sould have been detected by the checker
   implementation_error("could not find variable in variable array");
+  // unreachable
+  return -1;
 }
 
 // generates asm from expresion the result will be put in the top of the stack

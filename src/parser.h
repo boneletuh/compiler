@@ -139,6 +139,8 @@ int get_operation_precedence(Token operation) {
     }
   }
   error("unkown precedence of operation");
+  // unreachable
+  return -1;
 }
 
 // parses expresion recursively

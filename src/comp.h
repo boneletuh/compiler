@@ -11,13 +11,57 @@
 #include "checker.h"
 #include "generator.h"
 
+void free_scope(Node_Scope scope);
 
 void free_expresion(Node_Expresion expresion) {
-  if (expresion.expresion_type == expresion_binary_operation_type) {
-    free_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side);
-    free_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side);
-    free(expresion.expresion_value.expresion_binary_operation_value);
+  switch (expresion.expresion_type) {
+    case expresion_binary_operation_type:
+      free_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side);
+      free_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side);
+      free(expresion.expresion_value.expresion_binary_operation_value);
+    // nothing to free in this
+    case expresion_number_type:
+    case expresion_identifier_type:
+      break;
   }
+}
+
+void free_stmt(Node_Statement stmt) {
+    switch (stmt.statement_type) {
+      case var_declaration_type:
+        // var declaration node
+        free_expresion(stmt.statement_value.var_declaration.value);
+        break;
+      case exit_node_type:
+        // exit node
+        free_expresion(stmt.statement_value.exit_node.exit_code);
+        break;
+      case var_assignment_type:
+        free_expresion(stmt.statement_value.var_assignment.value);
+        break;
+      case print_type:
+        free_expresion(stmt.statement_value.print.chr);
+        break;
+      case scope_type:
+        free_scope(stmt.statement_value.scope);
+        break;
+      case if_type:
+        free_expresion(stmt.statement_value.if_node.condition);
+        free_scope(stmt.statement_value.if_node.scope);
+        break;
+      case while_type:
+        free_expresion(stmt.statement_value.while_node.condition);
+        free_scope(stmt.statement_value.while_node.scope);
+        break;
+      // FIX: handle: scope, if, while
+    }
+}
+
+void free_scope(Node_Scope scope) {
+  for (int i = 0; i < scope.statements_count; i++) {
+    free_stmt(scope.statements_node[i]);
+  }
+  free(scope.statements_node);
 }
 
 // frees all the allocated memory
@@ -27,23 +71,7 @@ void free_all_memory(char * code, Token * tokens, Node_Program syntax_tree) {
   // free the expresions of the program recursively
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
-    switch (node.statement_type) {
-      case var_declaration_type:
-        // var declaration node
-        free_expresion(node.statement_value.var_declaration.value);
-        break;
-      case exit_node_type:
-        // exit node
-        free_expresion(node.statement_value.exit_node.exit_code);
-        break;
-      case var_assignment_type:
-        free_expresion(node.statement_value.var_assignment.value);
-        break;
-      case print_type:
-        free_expresion(node.statement_value.print.chr);
-        break;
-      // FIX: handle: scope, if, while
-    }
+    free_stmt(node);
   }
   free(syntax_tree.statements_node);
 }
