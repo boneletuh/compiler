@@ -65,8 +65,20 @@ void gen_C_expresion(const Node_Expresion expresion, FILE * file_ptr) {
           implementation_error("exponentation not implemented");
           break;
 
+        case binary_operation_big_type:
+          add_string_to_file(file_ptr, " > ");
+          break;
+
+        case binary_operation_les_type:
+          add_string_to_file(file_ptr, " < ");
+          break;
+
+        case binary_operation_equ_type:
+          add_string_to_file(file_ptr, " == ");
+          break;
+
         default:
-          implementation_error("uknown operation in expresion");
+          implementation_error("unknown operation in expresion");
           break;
       }
       gen_C_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side, file_ptr);
@@ -98,7 +110,11 @@ void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
 
       case print_type:
       // exit node
-      add_string_to_file(out_file_ptr, " printf(\"%c\", ");
+      /*add_string_to_file(out_file_ptr, " printf(\"%c\", ");
+      gen_C_expresion(stmt.statement_value.print.chr, out_file_ptr);
+      add_string_to_file(out_file_ptr, "&0xff)");
+*/
+      add_string_to_file(out_file_ptr, " putchar(");
       gen_C_expresion(stmt.statement_value.print.chr, out_file_ptr);
       add_string_to_file(out_file_ptr, "&0xff)");
       break;
@@ -156,7 +172,7 @@ void gen_C_scope(const Node_Scope scope, FILE * out_file_ptr) {
 // it generates C code
 void gen_C_code(const Node_Program syntax_tree, char * out_file_name) {
   FILE * out_file_ptr = create_file(out_file_name);
-  add_string_to_file(out_file_ptr, "#include <stdlib.h>\n#include <stdio.h>\nvoid main() {\n");
+  add_string_to_file(out_file_ptr, "#include <stdlib.h>\n#include <stdio.h>\nint main() {\n");
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
     gen_C_statement(node, out_file_ptr);

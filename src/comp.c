@@ -16,8 +16,8 @@ int main(int argc, char ** argv) {
 
   // time it
   float time = ((float) (clock() - start)) / CLOCKS_PER_SEC;
-  printf("\n#######\ntime: %f\n", time);
+  printf("#######\ntime: %f\n", time);
 
-  printf("compilation ended");
+  printf("compilation ended\n");
   return 0;
 }

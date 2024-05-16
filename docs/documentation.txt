@@ -9,9 +9,11 @@ How to use:
 Operators:
  associativity is allways left to right
  the binary operator precedence are:
-  +	0
-  -	0
-  %	1
+  >	0
+  <	0
+  +	1
+  -	1
+  %	2
   *	2
   /	2
   ^	3

@@ -18,8 +18,8 @@ typedef struct Token {
   } type;
 } Token;
 
+// TODO: add look up table for O(1) time
 bool is_in_str(char symbol, const char * string) {
-  // TODO: add look up table for O(1) time
   for (int i = 0; string[i] != '\0'; i++) {
     if (string[i] == symbol) {
       return true;
@@ -48,7 +48,7 @@ Token * lexer(char * string) {
 
   const char * var_sym = "abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const char * numb_sym = "0123456789";
-  const char * oper_sym = "+-*/=%^";
+  const char * oper_sym = "+-*/=%^><";
   const char * separ_sym = " \r\t\n";
 
   int token_beginning = 0;
@@ -164,7 +164,6 @@ Token * lexer(char * string) {
       
       case operation:
         new_token.type = Operation;
-        // the operation can be longer than 1 symbol
         if (!is_in_str(symbol, oper_sym)) {
           new_token.beginning = string + token_beginning;
           new_token.length = (unsigned short) (i - token_beginning);

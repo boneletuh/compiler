@@ -31,7 +31,10 @@ typedef struct Node_Binary_Operation {
     binary_operation_mul_type,
     binary_operation_div_type,
     binary_operation_mod_type,
-    binary_operation_exp_type
+    binary_operation_exp_type,
+    binary_operation_big_type,
+    binary_operation_les_type,
+    binary_operation_equ_type
   } operation_type;
   Node_Expresion right_side;
 } Node_Binary_Operation;
@@ -121,6 +124,15 @@ enum {operation_type} get_operation_type(Token operation) {
   else if (compare_token_to_string(operation, "^")) {
     type = binary_operation_exp_type;
   }
+  else if (compare_token_to_string(operation, ">")) {
+    type = binary_operation_big_type;
+  }
+  else if (compare_token_to_string(operation, "<")) {
+    type = binary_operation_les_type;
+  }
+  else if (compare_token_to_string(operation, "==")) {
+    type = binary_operation_equ_type;
+  }
   else {
     error("unkown operation in expresion");
   }
@@ -130,8 +142,8 @@ enum {operation_type} get_operation_type(Token operation) {
 // get the precedence of an operator acording to the documentation
 // the closest the value to 0 the less the precedence is
 int get_operation_precedence(Token operation) {
-  const char * opers[] = {"+", "-", "%", "*", "/", "^"};
-  const int precedes[] = { 0 ,  0 ,  1 ,  2 ,  2 ,  3 };
+  const char * opers[] = {">", "==", "<", "+", "-", "%", "*", "/", "^"};
+  const int precedes[] = { 0 ,  0 ,   0 ,  1 ,  1 ,  2 ,  2 ,  2 ,  3 };
   // find the idx of the matching string and return the corresponding precedence
   for (unsigned i = 0; i < sizeof(opers)/sizeof(*opers); i++) {
     if (compare_token_to_string(operation, opers[i])) {
