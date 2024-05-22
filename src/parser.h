@@ -155,10 +155,48 @@ int get_operation_precedence(Token operation) {
   return -1;
 }
 
+
+// 'expr' must be the address of the first opening bracket in the expression
+// returns the offset off the matching closing bracket,
+//   if it couldnt find it prints an error an exits
+int offset_of_match_bracket(Token * expr, int exprsz) {
+  if (expr->type != Bracket || *expr->beginning != '(') {
+    implementation_error("beginning of bracket expr is not open bracket");
+  }
+
+  int depth = 1;
+  int offset = 1;
+  while (depth != 0) {
+    if (offset >= exprsz) {
+      if (offset > 0) {
+        error("expected a closing bracket");
+      } else if (offset < 0) {
+        error("expected a opening bracket");
+      }
+    }
+    if (expr[offset].type == Bracket) {
+      if (expr[offset].beginning[0] == '(') {
+        depth++;
+      }
+      else if (expr[offset].beginning[0] == ')') {
+        depth--;
+      }
+      else {
+        implementation_error("symbol is of type Bracket but is not ( or )");
+      }
+    }
+    offset++;
+  }
+  return offset -1;
+}
+
 // parses expresion recursively
 Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
   Node_Expresion result;
-  if (size == 1) {
+  if (size == 0) {
+    error("expression must not be empty");
+  }
+  else if (size == 1) {
     // set the type of the expresion
     if (expresion_beginning->type == Number) {
       result.expresion_type = expresion_number_type;
@@ -172,7 +210,12 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
       error("unexpected type in expresion");
     }
   }
-  else if (size % 2 == 1) {
+  else {
+    if (expresion_beginning[0].type == Bracket && expresion_beginning[0].beginning[0] == '(' &&
+        offset_of_match_bracket(expresion_beginning, size) == size -1) {
+      result = parse_expresion(&expresion_beginning[1], size -2);
+      return result;
+    }
     int left_side_beginning = 0;
     int left_side_size;
     Token operation;
@@ -182,15 +225,23 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
     // find the beginning and size of the left and right side of the expresion
     int i;
     for (i = 0; i < size; i++) {
+      // if it finds a bracket skip it
+      if (expresion_beginning[i].type == Bracket && expresion_beginning[i].beginning[0] == '(') {
+        i += offset_of_match_bracket(&expresion_beginning[i], size);
+      }
       // find the operation with the lowest precedence
       if (expresion_beginning[i].type == Operation) {
           if (get_operation_precedence(expresion_beginning[i]) < min_oper_preced) {
-          min_oper_preced = get_operation_precedence(expresion_beginning[i]);
-          left_side_size = i;
-          operation = expresion_beginning[i];
-          right_side_beginning = i +1;
+            min_oper_preced = get_operation_precedence(expresion_beginning[i]);
+            left_side_size = i;
+            operation = expresion_beginning[i];
+            right_side_beginning = i +1;
         }
       }
+    }
+    // if it did not found an operation report it
+    if (min_oper_preced == 9999) {
+      error("expected an operation in expresion");
     }
     right_side_size = i - right_side_beginning;
     // create a new node a parse each side of the expresion
@@ -202,9 +253,6 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
 
     result.expresion_value.expresion_binary_operation_value = bin_operation;
     result.expresion_type = expresion_binary_operation_type;
-  }
-  else {
-    implementation_error("parsing this expresion is not implemented");
   }
   return result;
 }
@@ -262,7 +310,12 @@ Node_Program parser(Token * tokens) {
       // get the number of tokens in the expresion, we add 1 to skip the "exit"
       int expresion_beginning = i +1;
       // FIX: improve this loop, it is very unsafe
-      while (tokens[i].type != Semi_colon) i++; 
+      while (tokens[i].type != Semi_colon) {
+        if (tokens[i].type == End_of_file) {
+          error("expected a semicolon");
+        }
+        i++;
+      }
       int expresion_size = i - expresion_beginning;
       new_tree[statements_num -1].statement_type = exit_node_type;
       new_tree[statements_num -1].statement_value.exit_node.exit_code = parse_expresion(&tokens[expresion_beginning], expresion_size);
@@ -272,7 +325,12 @@ Node_Program parser(Token * tokens) {
       // get the number of tokens in the expresion, we add 1 to skip the "exit"
       int expresion_beginning = i +1;
       // FIX: improve this loop, it is very unsafe
-      while (tokens[i].type != Semi_colon) i++; 
+      while (tokens[i].type != Semi_colon) {
+        if (tokens[i].type == End_of_file) {
+          error("expected a semicolon");
+        }
+        i++;
+      }
       int expresion_size = i - expresion_beginning;
       new_tree[statements_num -1].statement_type = print_type;
       new_tree[statements_num -1].statement_value.print.chr = parse_expresion(&tokens[expresion_beginning], expresion_size);
@@ -287,7 +345,12 @@ Node_Program parser(Token * tokens) {
       // get the number of tokens in the expresion, we add 3 to skip the var name, the ":" and the "="
       int expresion_beginning = i +3;
       // FIX: improve this loop, it is very unsafe
-      while (tokens[i].type != Semi_colon) i++;
+      while (tokens[i].type != Semi_colon) {
+        if (tokens[i].type == End_of_file) {
+          error("expected a semicolon");
+        }
+        i++;
+      }
       int expresion_size = i - expresion_beginning;
       new_tree[statements_num -1].statement_type = var_declaration_type;
       new_tree[statements_num -1].statement_value.var_declaration.var_name = var_name;
@@ -302,7 +365,12 @@ Node_Program parser(Token * tokens) {
       // get the number of tokens in the expresion, we add 2 to skip the var name, the "="
       int expresion_beginning = i +2;
       // FIX: improve this loop, it is very unsafe
-      while (tokens[i].type != Semi_colon) i++;
+      while (tokens[i].type != Semi_colon) {
+        if (tokens[i].type == End_of_file) {
+          error("expected a semicolon");
+        }
+        i++;
+      }
       int expresion_size = i - expresion_beginning;
       new_tree[statements_num -1].statement_type = var_assignment_type;
       new_tree[statements_num -1].statement_value.var_assignment.var_name = var_name;

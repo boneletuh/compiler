@@ -7,9 +7,11 @@ How to use:
  otherwise it will throw an error and not compile the code
 
 Operators:
+ the brackets allways evaluate first
  associativity is allways left to right
  the binary operator precedence are:
   >	0
+  ==	0
   <	0
   +	1
   -	1

@@ -8,8 +8,10 @@ letter = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" |
 
 identifier = letter, {letter} ;
 
-operator = "+" | "-" | "*" | "/" | ">" | "<" ;
+operator = "+" | "-" | "*" | "/" | ">" | "<" | "==" ;
 
+
+Expresion = number | identifier | Binary_operation | ("(", Expresion, ")") ;
 
 Binary_operation = Expresion, operator, Expresion ;
 
@@ -30,5 +32,3 @@ Statement = (identifier, ":", "=", Expresion, ";") |
             If |
             While |
             Print ;
-
-Expresion = number | identifier | Binary_operation ;

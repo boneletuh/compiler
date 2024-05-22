@@ -14,6 +14,7 @@ typedef struct Token {
     Colon,
     Semi_colon,
     Curly_bracket,
+    Bracket,
     End_of_file
   } type;
 } Token;
@@ -107,6 +108,18 @@ Token * lexer(char * string) {
           new_token.beginning = string + token_beginning;
           new_token.length = 1;
           new_token.type = Curly_bracket;
+
+          // add token to token_array
+          token_array = append_token(token_array, token_count, new_token);
+          token_count++;
+
+          token_beginning = i;
+          mode = searching_token;
+        }
+        else if (symbol == '(' || symbol == ')') {
+          new_token.beginning = string + token_beginning;
+          new_token.length = 1;
+          new_token.type = Bracket;
 
           // add token to token_array
           token_array = append_token(token_array, token_count, new_token);
