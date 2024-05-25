@@ -19,7 +19,8 @@ Scope = "{", {Statement}, "}" ;
 
 Progamm = {Statement} ;
 
-If = "if", Expresion, Scope ;
+If = "if", Expresion, Scope |
+     ["else", Scope] ;
 
 While = "while", Expresion, Scope ;
 

@@ -4,12 +4,12 @@ How to use:
  the output file path extension must be:
     *.c to generate C code or
     *.asm to generate NASM code
- otherwise it will throw an error and not compile the code
+ otherwise it will throw an error and not compile the code.
 
 Operators:
- the brackets allways evaluate first
- associativity is allways left to right
- the binary operator precedence are:
+ The brackets always evaluate first.
+ Associativity is always left to right,
+ The binary operator precedences are:
   >	0
   ==	0
   <	0
@@ -24,46 +24,44 @@ Variables:
 -Declaration:
  -Syntax:
    var_name : = expr ;
-  You can not declare two variables with the same name
-
- You can not use a variable which has not been declared
+ You can not declare two variables with the same name.
+ You can not use a variable which has not been declared.
 
 -Assignment:
  -Syntax:
    var_name = expr;
- The variable must hav been declared to assign a value to it
+ The variable must have been declared to assign a value to it.
 
 -Scopes:
  -Syntax:
    "{" + staments + "}"
-  Scopes without staments are valid
- All the variables declared inside a scope will be delete when the scope ends
- Declaring a variable with the same name as another outside the scope is not allowed
- Scopes can be recursive
+  Scopes without staments are valid.
+ All the variables declared inside a scope will be delete when the scope ends.
+ Declaring a variable with the same name as another outside the scope is not allowed.
+ Scopes can be recursive.
 
 -Conditionals:
  -Syntax:
-   "if" + condition + scope
- The scope must be a valid scope
+   "if" + condition + scope + ("else" + scope)
  The result of the condition expression will be treated as a boolean value;
- if it is 0 the scope will not be executed otherwise it will
+ if the result of the expression is non zero the scope will be executed, otherwise,
+ if there is an "else" statement following it will be executed.
 
 -Loops:
  -While:
   -Syntax:
    "while" + condition + scope
-  The value of the condition will be treated as boolean
-  the scope will execute while the condition returns true
+  The value of the condition will be treated as boolean.
+  The scope will execute while the condition returns a non zero value.
 
 -Input/Output:
- The IO is not standardized yet
+ The IO is not standardized yet.
  -Printing:
-   this only works for targetting C compilation
    -Syntax:
      "print" + expr + ";"
-   evaluates the expression and the lower 8 bits of the value will be printed using printf()
+   Evaluates the expression and the lower 8 bits of the value will be printed using its ASCII representation.
 
 -Exiting:
  -Syntax:
   "exit" + expr + ";"
- The program will end when this statement is executed, returning the expr as an exit code
+ When this statement is executed the program will end, returning the expr value as an exit code.

@@ -87,6 +87,7 @@ void free_vars_list(Vars_list variables) {
 
 // check if a statemeny is valid, if it is not report it and halt
 void check_statement(Vars_list * variables, Node_Statement stmt) {
+  // TODO: use a switch here
   if (stmt.statement_type == var_declaration_type) {
     // check that when declaring a var there isnt another var with the same name
     Token variable = stmt.statement_value.var_declaration.var_name;
@@ -131,6 +132,11 @@ void check_statement(Vars_list * variables, Node_Statement stmt) {
     Vars_list scope_vars = copy_vars_list(*variables);
     for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
       check_statement(&scope_vars, stmt.statement_value.if_node.scope.statements_node[i]);
+    }
+    if (stmt.statement_value.if_node.has_else_block) {
+      for (int i = 0; i < stmt.statement_value.if_node.else_block.statements_count; i++) {
+        check_statement(&scope_vars, stmt.statement_value.if_node.else_block.statements_node[i]);
+      }
     }
     free_vars_list(scope_vars);
   }

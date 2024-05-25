@@ -4,6 +4,8 @@
 #include "errors.h"
 #include "mlib.h"
 
+#define NULL_TOKEN (Token) { .beginning=NULL, .length=0, .type=End_of_file}
+
 typedef struct Token {
   char * beginning;
   unsigned short length;
@@ -55,7 +57,7 @@ Token * lexer(char * string) {
   int token_beginning = 0;
   int token_count = 0;
   Token * token_array = malloc(token_count * sizeof(Token));
-  Token new_token;
+  Token new_token = NULL_TOKEN;
   int i;
   for (i = 0; string[i] != '\0'; i++) {
     const char symbol = string[i];
@@ -205,12 +207,8 @@ Token * lexer(char * string) {
     token_array = append_token(token_array, token_count, new_token);
     token_count += 1;
   }
-  // add EOF token to the end of token array
-  new_token.beginning = NULL;
-  new_token.length = 0;
-  new_token.type = End_of_file;
-
-  token_array = append_token(token_array, token_count, new_token);
+  // append null token to mark the end of the array
+  token_array = append_token(token_array, token_count, NULL_TOKEN);
 
   return token_array;
 }

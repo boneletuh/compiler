@@ -11,8 +11,6 @@
 #include "checker.h"
 #include "generator.h"
 
-void free_scope(Node_Scope scope);
-
 void free_expresion(Node_Expresion expresion) {
   switch (expresion.expresion_type) {
     case expresion_binary_operation_type:
@@ -25,6 +23,8 @@ void free_expresion(Node_Expresion expresion) {
       break;
   }
 }
+
+void free_scope(Node_Scope scope);
 
 void free_stmt(Node_Statement stmt) {
     switch (stmt.statement_type) {
@@ -48,6 +48,9 @@ void free_stmt(Node_Statement stmt) {
       case if_type:
         free_expresion(stmt.statement_value.if_node.condition);
         free_scope(stmt.statement_value.if_node.scope);
+        if (stmt.statement_value.if_node.has_else_block) {
+          free_scope(stmt.statement_value.if_node.else_block);
+        }
         break;
       case while_type:
         free_expresion(stmt.statement_value.while_node.condition);

@@ -143,6 +143,11 @@ void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
       add_string_to_file(out_file_ptr, " ) {\n");
       gen_C_scope(stmt.statement_value.if_node.scope, out_file_ptr);
       add_string_to_file(out_file_ptr, " }");
+      if (stmt.statement_value.if_node.has_else_block) {
+        add_string_to_file(out_file_ptr, " else {\n");
+        gen_C_scope(stmt.statement_value.if_node.else_block, out_file_ptr);
+        add_string_to_file(out_file_ptr, "}");
+      }
       break;
 
     case while_type:
@@ -413,6 +418,10 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       break;
 
     case if_type:
+      if (stmt.statement_value.if_node.has_else_block) {
+        implementation_error("else blocks not implemented for assembly");
+      }
+
       { // generate the condition
        Node_Expresion condition = stmt.statement_value.if_node.condition;
        gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);

@@ -66,6 +66,8 @@ typedef struct Node_Scope {
 typedef struct Node_If {
   Node_Expresion condition;
   Node_Scope scope;
+  bool has_else_block;
+  Node_Scope else_block;
 } Node_If;
 
 typedef struct Node_While {
@@ -344,7 +346,6 @@ Node_Program parser(Token * tokens) {
       Token var_name = tokens[i];
       // get the number of tokens in the expresion, we add 3 to skip the var name, the ":" and the "="
       int expresion_beginning = i +3;
-      // FIX: improve this loop, it is very unsafe
       while (tokens[i].type != Semi_colon) {
         if (tokens[i].type == End_of_file) {
           error("expected a semicolon");
@@ -364,7 +365,6 @@ Node_Program parser(Token * tokens) {
       Token var_name = tokens[i];
       // get the number of tokens in the expresion, we add 2 to skip the var name, the "="
       int expresion_beginning = i +2;
-      // FIX: improve this loop, it is very unsafe
       while (tokens[i].type != Semi_colon) {
         if (tokens[i].type == End_of_file) {
           error("expected a semicolon");
@@ -388,6 +388,8 @@ Node_Program parser(Token * tokens) {
       Node_Expresion condition;
       Token * expr = &tokens[i + 1];
       int expr_sz = i + 1;
+
+      // FIX: improve this loop, it is very unsafe
       do { i++; } while (tokens[i].type != Curly_bracket);
       expr_sz = i - expr_sz;
       condition = parse_expresion(expr, expr_sz);
@@ -397,12 +399,24 @@ Node_Program parser(Token * tokens) {
       Node_If node_if = (Node_If) {.condition = condition, scope = scope};
       new_tree[statements_num -1].statement_type = if_type;
       new_tree[statements_num -1].statement_value.if_node = node_if;
+
+      if (compare_token_to_string(tokens[i + 1], "else")) {
+        i += 2;
+        printf("(%.*s) (%.*s)\n", tokens[i].length, tokens[i].beginning, tokens[i+1].length, tokens[i+1].beginning);
+        new_tree[statements_num -1].statement_value.if_node.has_else_block = true;
+        Node_Scope else_block = parse_scope_at(tokens, &i);
+        new_tree[statements_num -1].statement_value.if_node.else_block = else_block;
+      } else {
+        new_tree[statements_num -1].statement_value.if_node.has_else_block = false;
+      }
+
       result_tree.statements_node = new_tree;
     }
     else if (compare_token_to_string(tokens[i], "while")) {
       Node_Expresion condition;
       Token * expr = &tokens[i + 1];
       int expr_sz = i + 1;
+      // FIX: improve this loop, it is very unsafe
       do { i++; } while (tokens[i].type != Curly_bracket);
       expr_sz = i - expr_sz;
       condition = parse_expresion(expr, expr_sz);
