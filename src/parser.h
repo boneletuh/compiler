@@ -105,9 +105,8 @@ Node_Program parser(Token * tokens);
 Node_Scope parse_scope(Token * tokens, int tokens_count);
 
 // convert the string of a operation token into a enum that is more manageable form
-// TODO: see if using a hashtable would be faster 
-enum {operation_type} get_operation_type(Token operation) {
-  enum {operation_type} type;
+int get_operation_type(Token operation) {
+  int type;
   if (compare_token_to_string(operation, "+")) {
     type = binary_operation_sum_type;
   }
@@ -402,7 +401,6 @@ Node_Program parser(Token * tokens) {
 
       if (compare_token_to_string(tokens[i + 1], "else")) {
         i += 2;
-        printf("(%.*s) (%.*s)\n", tokens[i].length, tokens[i].beginning, tokens[i+1].length, tokens[i+1].beginning);
         new_tree[statements_num -1].statement_value.if_node.has_else_block = true;
         Node_Scope else_block = parse_scope_at(tokens, &i);
         new_tree[statements_num -1].statement_value.if_node.else_block = else_block;

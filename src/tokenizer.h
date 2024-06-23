@@ -4,7 +4,7 @@
 #include "errors.h"
 #include "mlib.h"
 
-#define NULL_TOKEN (Token) { .beginning=NULL, .length=0, .type=End_of_file}
+#define NULL_TOKEN (Token) { .beginning=NULL, .length=0, .type=End_of_file }
 
 typedef struct Token {
   char * beginning;
@@ -21,7 +21,6 @@ typedef struct Token {
   } type;
 } Token;
 
-// TODO: add look up table for O(1) time
 bool is_in_str(char symbol, const char * string) {
   for (int i = 0; string[i] != '\0'; i++) {
     if (string[i] == symbol) {
@@ -132,7 +131,6 @@ Token * lexer(char * string) {
         }
         // throw error if the symbol is not allowed
         else if (!is_in_str(symbol, separ_sym)) {
-          // FIX: at the end of the file it sometimes detects the -1 symbol probably because utf-8
           if (symbol != -1) {
             implementation_error("unkown type of symbol");
           }

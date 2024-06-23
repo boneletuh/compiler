@@ -85,72 +85,80 @@ void free_vars_list(Vars_list variables) {
   free(variables.scopes);
 }
 
-// check if a statemeny is valid, if it is not report it and halt
+// check if a statement is valid, if it is not, report it and halt
 void check_statement(Vars_list * variables, Node_Statement stmt) {
   // TODO: use a switch here
-  if (stmt.statement_type == var_declaration_type) {
-    // check that when declaring a var there isnt another var with the same name
-    Token variable = stmt.statement_value.var_declaration.var_name;
-    if (is_var_in_var_list(*variables, variable)) {
-      error("variable already declared");
-    }
-    else {
-      append_var_to_var_list(variable, variables);
-    }
-    // check that the expresion in the statement is valid
-    Node_Expresion expresion = stmt.statement_value.var_declaration.value;
-    is_expresion_valid(*variables, expresion);
-  }
-  else if (stmt.statement_type == exit_node_type) {
-    Node_Expresion expresion = stmt.statement_value.exit_node.exit_code;
-    is_expresion_valid(*variables, expresion);
-  }
-  else if (stmt.statement_type == print_type) {
-    Node_Expresion expresion = stmt.statement_value.print.chr;
-    is_expresion_valid(*variables, expresion);
-  }
-  else if (stmt.statement_type == var_assignment_type) {
-    // check that when assigning to a var there is another var with the same name
-    Token variable = stmt.statement_value.var_assignment.var_name;
-    if (!is_var_in_var_list(*variables, variable)) {
-      error("variable has not been declared before");
-    }
-    // check that the expresion is good
-    Node_Expresion expresion = stmt.statement_value.var_assignment.value;
-    is_expresion_valid(*variables, expresion);
-  }
-  else if (stmt.statement_type == scope_type) {
-    Vars_list scope_vars = copy_vars_list(*variables);
-    for (int i = 0; i < stmt.statement_value.scope.statements_count; i++) {
-      check_statement(&scope_vars, stmt.statement_value.scope.statements_node[i]);
-    }
-    free_vars_list(scope_vars);
-  }
-  else if (stmt.statement_type == if_type) {
-    Node_Expresion condition = stmt.statement_value.if_node.condition;
-    is_expresion_valid(*variables, condition);
-    Vars_list scope_vars = copy_vars_list(*variables);
-    for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
-      check_statement(&scope_vars, stmt.statement_value.if_node.scope.statements_node[i]);
-    }
-    if (stmt.statement_value.if_node.has_else_block) {
-      for (int i = 0; i < stmt.statement_value.if_node.else_block.statements_count; i++) {
-        check_statement(&scope_vars, stmt.statement_value.if_node.else_block.statements_node[i]);
+  switch (stmt.statement_type) {
+    case var_declaration_type: {
+      // check that when declaring a var there isnt another var with the same name
+      Token variable = stmt.statement_value.var_declaration.var_name;
+      if (is_var_in_var_list(*variables, variable)) {
+        error("variable already declared");
       }
+      else {
+        append_var_to_var_list(variable, variables);
+      }
+      // check that the expresion in the statement is valid
+      Node_Expresion expresion = stmt.statement_value.var_declaration.value;
+      is_expresion_valid(*variables, expresion);
+      break;
     }
-    free_vars_list(scope_vars);
-  }
-  else if (stmt.statement_type == while_type) {
-    Node_Expresion condition = stmt.statement_value.while_node.condition;
-    is_expresion_valid(*variables, condition);
-    Vars_list scope_vars = copy_vars_list(*variables);
-    for (int i = 0; i < stmt.statement_value.while_node.scope.statements_count; i++) {
-      check_statement(&scope_vars, stmt.statement_value.while_node.scope.statements_node[i]);
+    case exit_node_type: {
+      Node_Expresion expresion = stmt.statement_value.exit_node.exit_code;
+      is_expresion_valid(*variables, expresion);
+      break;
     }
-    free_vars_list(scope_vars);
-  }
-  else {
-    implementation_error("generating this statement is not implemented");
+    case print_type: {
+      Node_Expresion expresion = stmt.statement_value.print.chr;
+      is_expresion_valid(*variables, expresion);
+      break;
+    }
+    case var_assignment_type: {
+      // check that when assigning to a var there is another var with the same name
+      Token variable = stmt.statement_value.var_assignment.var_name;
+      if (!is_var_in_var_list(*variables, variable)) {
+        error("variable has not been declared before");
+      }
+      // check that the expresion is good
+      Node_Expresion expresion = stmt.statement_value.var_assignment.value;
+      is_expresion_valid(*variables, expresion);
+      break;
+    }
+    case scope_type: {
+      Vars_list scope_vars = copy_vars_list(*variables);
+      for (int i = 0; i < stmt.statement_value.scope.statements_count; i++) {
+        check_statement(&scope_vars, stmt.statement_value.scope.statements_node[i]);
+      }
+      free_vars_list(scope_vars);
+      break;
+    }
+    case if_type: {
+      Node_Expresion condition = stmt.statement_value.if_node.condition;
+      is_expresion_valid(*variables, condition);
+      Vars_list scope_vars = copy_vars_list(*variables);
+      for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
+        check_statement(&scope_vars, stmt.statement_value.if_node.scope.statements_node[i]);
+      }
+      if (stmt.statement_value.if_node.has_else_block) {
+        for (int i = 0; i < stmt.statement_value.if_node.else_block.statements_count; i++) {
+          check_statement(&scope_vars, stmt.statement_value.if_node.else_block.statements_node[i]);
+        }
+      }
+      free_vars_list(scope_vars);
+      break;
+    }
+    case while_type: {
+      Node_Expresion condition = stmt.statement_value.while_node.condition;
+      is_expresion_valid(*variables, condition);
+      Vars_list scope_vars = copy_vars_list(*variables);
+      for (int i = 0; i < stmt.statement_value.while_node.scope.statements_count; i++) {
+        check_statement(&scope_vars, stmt.statement_value.while_node.scope.statements_node[i]);
+      }
+      free_vars_list(scope_vars);
+      break;
+    }
+    default:
+      implementation_error("generating this statement is not implemented");
   }
 }
 

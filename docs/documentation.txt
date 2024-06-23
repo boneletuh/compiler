@@ -10,15 +10,15 @@ Operators:
  The brackets always evaluate first.
  Associativity is always left to right,
  The binary operator precedences are:
-  >	0
+  >		0
   ==	0
-  <	0
-  +	1
-  -	1
-  %	2
-  *	2
-  /	2
-  ^	3
+  <		0
+  +		1
+  -		1
+  %		2
+  *		2
+  /		2
+  ^		3
 
 Variables:
 -Declaration:

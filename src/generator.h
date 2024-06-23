@@ -109,11 +109,7 @@ void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
       break;
 
       case print_type:
-      // exit node
-      /*add_string_to_file(out_file_ptr, " printf(\"%c\", ");
-      gen_C_expresion(stmt.statement_value.print.chr, out_file_ptr);
-      add_string_to_file(out_file_ptr, "&0xff)");
-*/
+      // print node
       add_string_to_file(out_file_ptr, " putchar(");
       gen_C_expresion(stmt.statement_value.print.chr, out_file_ptr);
       add_string_to_file(out_file_ptr, "&0xff)");
@@ -309,6 +305,40 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
           fprintf(file_ptr, "%d", stack_size-8);
           add_string_to_file(file_ptr, "], rdx\n");
           break;
+
+        case binary_operation_equ_type:
+          // if rax and rbx are equal set rax to 1 otherwise to 0
+          add_string_to_file(file_ptr, "cmp rax, rbx\n");
+          add_string_to_file(file_ptr, "sete al\n");
+          add_string_to_file(file_ptr, "movzx rax, al\n");
+          // put the result in stack top
+          add_string_to_file(file_ptr, "mov qword [rbp - ");
+          fprintf(file_ptr, "%d", stack_size-8);
+          add_string_to_file(file_ptr, "], rax\n");
+          break;
+
+        case binary_operation_big_type:
+          // if rax and rbx are equal set rax to 1 otherwise to 0
+          add_string_to_file(file_ptr, "cmp rax, rbx\n");
+          add_string_to_file(file_ptr, "seta al\n");
+          add_string_to_file(file_ptr, "movzx rax, al\n");
+          // put the result in stack top
+          add_string_to_file(file_ptr, "mov qword [rbp - ");
+          fprintf(file_ptr, "%d", stack_size-8);
+          add_string_to_file(file_ptr, "], rax\n");
+          break;
+          
+        case binary_operation_les_type:
+          // if rax and rbx are equal set rax to 1 otherwise to 0
+          add_string_to_file(file_ptr, "cmp rax, rbx\n");
+          add_string_to_file(file_ptr, "setb al\n");
+          add_string_to_file(file_ptr, "movzx rax, al\n");
+          // put the result in stack top
+          add_string_to_file(file_ptr, "mov qword [rbp - ");
+          fprintf(file_ptr, "%d", stack_size-8);
+          add_string_to_file(file_ptr, "], rax\n");
+          break;
+
         // TODO: add the ^ operator
         default:
           // this operation has not been added yet or was not filtered by the checker
@@ -364,7 +394,7 @@ void free_scopes_list(Scopes_List scopes) {
   free(scopes.variables);
 }
 
-int uuids = 0; // keep track of an unique id for the labels so there arent collisions with other labels
+int uuid = 0; // keep track of an unique id for the labels so there arent collisions with other labels
 void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node_Statement stmt, int * stack_size) {
   switch (stmt.statement_type) {
     case var_declaration_type:
@@ -418,9 +448,9 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       break;
 
     case if_type:
-      if (stmt.statement_value.if_node.has_else_block) {
+      /*if (stmt.statement_value.if_node.has_else_block) {
         implementation_error("else blocks not implemented for assembly");
-      }
+      }*/
 
       { // generate the condition
        Node_Expresion condition = stmt.statement_value.if_node.condition;
@@ -431,27 +461,38 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       fprintf(out_file_ptr, "%d", *stack_size+8);
       add_string_to_file(out_file_ptr, "]\n");
       add_string_to_file(out_file_ptr, "test rax, rax\n");
-      int if_uid = uuids; // save the uid in case it gets modified in the scope
-      uuids++;
+      int if_uid = uuid; // save the uid in case it gets modified in the scope
+      uuid++;
+      // if the condition is not met skip the `if` block
       fprintf(out_file_ptr, "jz .IF%d\n", if_uid);
 
-      // generate the scope
-      {
+      { // generate the `if` scope
        Scopes_List temp_scopes = NASM_copy_scopes_list(*variables);
        //NASM_create_scope(&temp_scopes);
-       int temp_stack_size = *stack_size;
+       int tmp_stack_sz = *stack_size;
        for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
-         gen_NASM_statement(out_file_ptr, &temp_scopes, stmt.statement_value.if_node.scope.statements_node[i], &temp_stack_size);
+         gen_NASM_statement(out_file_ptr, &temp_scopes, stmt.statement_value.if_node.scope.statements_node[i], &tmp_stack_sz);
        }
        free_scopes_list(temp_scopes);
       }
-
-      fprintf(out_file_ptr, ".IF%d:\n", if_uid); // generate the label
+      // if the `if` block is executed skip the `else` block
+      fprintf(out_file_ptr, "jmp .EL%d\n", if_uid);
+      fprintf(out_file_ptr, ".IF%d:\n", if_uid); // generate the `if` label
+      { // generate `else` block code
+       Scopes_List temp_scopes = NASM_copy_scopes_list(*variables);
+       //NASM_create_scope(&temp_scopes);
+       int tmp_stack_sz = *stack_size;
+       for (int i = 0; i < stmt.statement_value.if_node.else_block.statements_count; i++) {
+         gen_NASM_statement(out_file_ptr, &temp_scopes, stmt.statement_value.if_node.else_block.statements_node[i], &tmp_stack_sz);
+       }
+       free_scopes_list(temp_scopes);
+      }
+      fprintf(out_file_ptr, ".EL%d:\n", if_uid); // generate the `else` label
       break;
 
     case while_type:;
-      int while_uid = uuids; // save the uid in case it gets modified in the scope
-      uuids++;
+      int while_uid = uuid; // save the uid in case it gets modified in the scope
+      uuid++;
       // generate the label for repeating the loop
       fprintf(out_file_ptr, ".WHB%d:\n", while_uid); // WHB is for "while beginning"
       { // generate the condition
@@ -523,8 +564,12 @@ void gen_NASM_code(const Node_Program syntax_tree, char * out_file_name) {
 
   free_scopes_list(scopes);
 
-  add_string_to_file(out_file_ptr, "pop rbp\n");
-  add_string_to_file(out_file_ptr, "ret\n");
+  // exit the program savely with a syscall
+  // NOTE: OS dependent
+  add_string_to_file(out_file_ptr, "mov rax, 60\n");
+  add_string_to_file(out_file_ptr, "xor rdi, rdi\n");
+  add_string_to_file(out_file_ptr, "syscall\n");
+
   fclose(out_file_ptr);
 }
 
