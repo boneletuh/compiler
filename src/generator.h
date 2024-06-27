@@ -95,7 +95,7 @@ void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
   switch (stmt.statement_type) {
     case var_declaration_type:
       // var declaration node
-      add_string_to_file(out_file_ptr, " int ");
+      add_string_to_file(out_file_ptr, " uint64_t ");
       add_token_to_file(out_file_ptr, stmt.statement_value.var_declaration.var_name);
       add_string_to_file(out_file_ptr, " = ");
       gen_C_expresion(stmt.statement_value.var_declaration.value, out_file_ptr);
@@ -173,7 +173,7 @@ void gen_C_scope(const Node_Scope scope, FILE * out_file_ptr) {
 // it generates C code
 void gen_C_code(const Node_Program syntax_tree, char * out_file_name) {
   FILE * out_file_ptr = create_file(out_file_name);
-  add_string_to_file(out_file_ptr, "#include <stdlib.h>\n#include <stdio.h>\nint main() {\n");
+  add_string_to_file(out_file_ptr, "#include <stdlib.h>\n#include <stdio.h>\n#include <stdint.h>\nint main() {\n");
   for (int i = 0; i < syntax_tree.statements_count; i++) {
     Node_Statement node = syntax_tree.statements_node[i];
     gen_C_statement(node, out_file_ptr);
@@ -448,10 +448,6 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
       break;
 
     case if_type:
-      /*if (stmt.statement_value.if_node.has_else_block) {
-        implementation_error("else blocks not implemented for assembly");
-      }*/
-
       { // generate the condition
        Node_Expresion condition = stmt.statement_value.if_node.condition;
        gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);

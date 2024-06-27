@@ -5,6 +5,14 @@
 #include "mlib.h"
 #include "tokenizer.h"
 
+// some near positive infinity number
+#define BIG_NUM 999999
+
+
+typedef struct Node_Type {
+  Token type;
+} Node_Type;
+
 typedef struct Node_Number {
   Token number_token;
 } Node_Number;
@@ -49,6 +57,7 @@ typedef struct Node_Print {
 
 typedef struct Node_Var_declaration {
   Token var_name;
+  Node_Type type;
   Node_Expresion value;
 } Node_Var_declaration;
 
@@ -101,8 +110,9 @@ typedef struct Node_Program {
   int statements_count;
 } Node_Program;
 
-Node_Program parser(Token * tokens);
-Node_Scope parse_scope(Token * tokens, int tokens_count);
+// predeclare this functions to allow mutual recursion
+Node_Program parser(const Token * tokens);
+Node_Scope parse_scope(const Token * tokens, const int tokens_count);
 
 // convert the string of a operation token into a enum that is more manageable form
 int get_operation_type(Token operation) {
@@ -160,7 +170,7 @@ int get_operation_precedence(Token operation) {
 // 'expr' must be the address of the first opening bracket in the expression
 // returns the offset off the matching closing bracket,
 //   if it couldnt find it prints an error an exits
-int offset_of_match_bracket(Token * expr, int exprsz) {
+int offset_of_match_bracket(const Token * expr, const int exprsz) {
   if (expr->type != Bracket || *expr->beginning != '(') {
     implementation_error("beginning of bracket expr is not open bracket");
   }
@@ -191,8 +201,9 @@ int offset_of_match_bracket(Token * expr, int exprsz) {
   return offset -1;
 }
 
+
 // parses expresion recursively
-Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
+Node_Expresion parse_expresion(const Token * expresion_beginning, const int size) {
   Node_Expresion result;
   if (size == 0) {
     error("expression must not be empty");
@@ -220,7 +231,7 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
     int left_side_beginning = 0;
     int left_side_size;
     Token operation;
-    int min_oper_preced = 9999; // some near positive infinity number
+    int min_oper_preced = BIG_NUM;
     int right_side_beginning;
     int right_side_size;
     // find the beginning and size of the left and right side of the expresion
@@ -241,7 +252,7 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
       }
     }
     // if it did not found an operation report it
-    if (min_oper_preced == 9999) {
+    if (min_oper_preced == BIG_NUM) {
       error("expected an operation in expresion");
     }
     right_side_size = i - right_side_beginning;
@@ -258,8 +269,53 @@ Node_Expresion parse_expresion(Token * expresion_beginning, int size) {
   return result;
 }
 
+
+// returns the offset of the next the semicolon token counting from the beginning pointer
+// in case there is no semicolon or something happend, reports an error and exits
+int next_semicolon_offset(const Token * beginning) {
+  int offset;
+  for (offset = 0; beginning[offset].type != Semi_colon; offset++) {
+    Token token = beginning[offset];
+    if (token.type == End_of_file) {
+      error("could not find the expected semicolon");
+    }
+    if (token.type == Curly_bracket) {
+      error("expected a semicolon");
+    }
+  }
+  return offset;
+}
+
+// returns the offset of the next the '=' token counting from the beginning pointer
+// if it could not find it, reports an error and exits
+int next_asign_offset(const Token * beginning) {
+  int offset;
+  for (offset = 0; compare_token_to_string(beginning[offset], "=") == 0; offset++) {
+    Token token = beginning[offset];
+    if (token.type == End_of_file) {
+      error("could not find the expected '='");
+    }
+    if (token.type == Semi_colon) {
+      error("expected a '='");
+    }
+    if (token.type == Curly_bracket) {
+      error("expected a '='");
+    }
+  }
+  return offset;
+}
+
+// parses a type definition
+Node_Type parse_type(const Token * type_beginning, const int type_sz) {
+  if (type_sz != 1) {
+    implementation_error("compund type are not implemented");
+  }
+  Node_Type type = (Node_Type) { .type=*type_beginning };
+  return type;
+}
+
 // parse a scope the same way as a program
-Node_Scope parse_scope(Token * tokens, int tokens_count) {
+Node_Scope parse_scope(const Token * tokens, const int tokens_count) {
   Token * new_tokens = smalloc((tokens_count + 1) * sizeof(Token)); // add 1 for space of the EOF token
   // add EOF token so it can be parse tha same way as a program
   new_tokens[tokens_count] = (Token) {  .beginning = NULL,
@@ -275,12 +331,12 @@ Node_Scope parse_scope(Token * tokens, int tokens_count) {
 }
 
 // tries to parse the scope the ptr points to
-// idx will be updated to the matching '}'
 // idx is a ptr to the index of the first '{' in the tokens
-Node_Scope parse_scope_at(Token * tokens, int * idx) {
+// idx will be updated to the matching '}'
+Node_Scope parse_scope_at(const Token * tokens, int * idx) {
   int scope_count = 1; // counter of nested scopes to allow recursive scopes
   int i = *idx;
-  // match the beginning of the scope with its ending
+  // match the beginning of the scope with its ending accounting for recursive scopes
   while (scope_count != 0) {
     if (tokens[i].type == End_of_file) {
       error("unmatched open curly bracket");
@@ -291,13 +347,140 @@ Node_Scope parse_scope_at(Token * tokens, int * idx) {
       if (compare_token_to_string(tokens[i], "}")) scope_count--;
     }
   }
-  Node_Scope scope = parse_scope(&tokens[*idx + 1], i - *idx -1); // add and substract 1 to avoid the original { }
+  Node_Scope scope = parse_scope(&tokens[*idx + 1], i - *idx -1); // add and substract 1 to avoid the original `{`, `}`
   *idx = i;
   return scope;
 }
 
+// parses exit statement
+// tokens is the stream of tokens of the program
+// index is indicates the 'exit' token in the tokens
+// index will be updated to the corresponding ';'
+Node_Exit parse_exit_at(const Token * tokens, int * idx) {
+  int expresion_beginning = *idx +1; // add 1 to skip the "exit"
+  *idx += next_semicolon_offset(&tokens[*idx]);
+  int expresion_size = *idx - expresion_beginning;
+  Node_Exit node_exit;
+  node_exit.exit_code = parse_expresion(&tokens[expresion_beginning], expresion_size);
+  return node_exit;
+}
+
+// parses print statement
+// tokens is the stream of tokens of the program
+// index is indicates the 'print' token in the tokens
+// index will be updated to the corresponding ';'
+Node_Print parse_print_at(const Token * tokens, int * idx) {
+  int expresion_beginning = *idx +1; // add 1 to skip the "print"
+  *idx += next_semicolon_offset(&tokens[*idx]);
+  int expresion_size = *idx - expresion_beginning;
+  Node_Print node_print;
+  node_print.chr = parse_expresion(&tokens[expresion_beginning], expresion_size);
+  return node_print;
+}
+
+// parses variable declaration statement
+// tokens is the stream of tokens of the program
+// index is indicates the variable name token in the tokens
+// index will be updated to the corresponding ';'
+Node_Var_declaration parse_var_declaration_at(const Token * tokens, int * idx) {
+  if (tokens[*idx].type != Identifier) {
+    error("expected an identifier in variable declaration");
+  }
+  Token var_name = tokens[*idx];
+
+  *idx += 2; // add 2 to skip the variable name and the ':'
+  const Token * type_beginning = &tokens[*idx];
+  *idx += next_asign_offset(type_beginning);
+  int type_sz = &tokens[*idx] - type_beginning;
+  Node_Type type = parse_type(type_beginning, type_sz);
+
+  int expresion_beginning = *idx +1; // add 1 to skip the '='
+  *idx += next_semicolon_offset(&tokens[*idx]);
+  int expresion_size = *idx - expresion_beginning;
+  Node_Expresion expresion = parse_expresion(&tokens[expresion_beginning], expresion_size);
+
+  Node_Var_declaration node_var_declaration = {
+    .var_name = var_name,
+    .type=type,
+    .value=expresion
+  };
+  return node_var_declaration;
+}
+
+// parses variable assigment statement
+// tokens is the stream of tokens of the program
+// index is indicates the variable name token in the tokens
+// index will be updated to the corresponding ';'
+Node_Var_assignment parse_var_assigment_at(const Token * tokens, int * idx) {
+  if (tokens[*idx].type != Identifier) {
+    error("expected an identifier in variable assigment");
+  }
+  Token var_name = tokens[*idx];
+  // add 2 to skip the var name and the "="
+  int expresion_beginning = *idx + 2;
+  *idx += next_semicolon_offset(&tokens[*idx]);
+  int expresion_size = *idx - expresion_beginning;
+  Node_Expresion expresion = parse_expresion(&tokens[expresion_beginning], expresion_size);
+
+  Node_Var_assignment node_var_assigment = {
+    .var_name=var_name,
+    .value=expresion
+  };
+  return node_var_assigment;
+}
+
+// parses if (and else) statement
+// tokens is the stream of tokens of the program
+// index is indicates the 'if' token in the tokens
+// index will be updated to the corresponding '}'
+Node_If parse_if_at(const Token * tokens, int * idx) {
+  // parse the condition
+  *idx += 1; // add 1 to skip the 'if'
+  const Token * expr = &tokens[*idx];
+  int expr_sz = *idx;
+  // FIX: improve this loop, it is very unsafe
+  do { ++*idx; } while (tokens[*idx].type != Curly_bracket);
+  expr_sz = *idx - expr_sz;
+  Node_Expresion condition = parse_expresion(expr, expr_sz);
+
+  // parse the if body
+  Node_Scope scope = parse_scope_at(tokens, idx);
+  Node_If node_if = (Node_If) {.condition=condition, scope=scope};
+
+  if (compare_token_to_string(tokens[*idx + 1], "else")) {
+    *idx += 2; // add 2 to skip the '}' and the 'else'
+    node_if.has_else_block = true;
+    node_if.else_block = parse_scope_at(tokens, idx);
+  } else {
+    node_if.has_else_block = false;
+  }
+  return node_if;
+}
+
+// parses while statement
+// tokens is the stream of tokens of the program
+// index is indicates the 'if' token in the tokens
+// index will be updated to the corresponding '}'
+Node_While parse_while_at(const Token * tokens, int * idx) {
+  // parse the condition
+  *idx += 1; // add 1 to skip the 'if'
+  const Token * expr = &tokens[*idx];
+  int expr_sz = *idx;
+  // FIX: improve this loop, it is very unsafe
+  do { ++*idx; } while (tokens[*idx].type != Curly_bracket);
+  expr_sz = *idx - expr_sz;
+  Node_Expresion condition = parse_expresion(expr, expr_sz);
+
+  Node_Scope scope = parse_scope_at(tokens, idx);
+  Node_While node_while = (Node_While) {
+    .condition=condition,
+    .scope=scope
+  };
+  return node_while;
+}
+
 // parses the tokens into a syntax tree
-Node_Program parser(Token * tokens) {
+Node_Program parser(const Token * tokens) {
   Node_Program result_tree;
   int statements_num = 0;
   result_tree.statements_node = malloc(statements_num * sizeof(Node_Statement));
@@ -308,121 +491,53 @@ Node_Program parser(Token * tokens) {
     Node_Statement * new_tree = srealloc(result_tree.statements_node, statements_num * sizeof(Node_Statement));
     // exit node
     if (compare_token_to_string(tokens[i], "exit")) {
-      // get the number of tokens in the expresion, we add 1 to skip the "exit"
-      int expresion_beginning = i +1;
-      // FIX: improve this loop, it is very unsafe
-      while (tokens[i].type != Semi_colon) {
-        if (tokens[i].type == End_of_file) {
-          error("expected a semicolon");
-        }
-        i++;
-      }
-      int expresion_size = i - expresion_beginning;
-      new_tree[statements_num -1].statement_type = exit_node_type;
-      new_tree[statements_num -1].statement_value.exit_node.exit_code = parse_expresion(&tokens[expresion_beginning], expresion_size);
+      Node_Statement stmt;
+      stmt.statement_type = exit_node_type;
+      stmt.statement_value.exit_node = parse_exit_at(tokens, &i);
+      new_tree[statements_num -1] = stmt;
       result_tree.statements_node = new_tree;
     }
     else if (compare_token_to_string(tokens[i], "print")) {
-      // get the number of tokens in the expresion, we add 1 to skip the "exit"
-      int expresion_beginning = i +1;
-      // FIX: improve this loop, it is very unsafe
-      while (tokens[i].type != Semi_colon) {
-        if (tokens[i].type == End_of_file) {
-          error("expected a semicolon");
-        }
-        i++;
-      }
-      int expresion_size = i - expresion_beginning;
-      new_tree[statements_num -1].statement_type = print_type;
-      new_tree[statements_num -1].statement_value.print.chr = parse_expresion(&tokens[expresion_beginning], expresion_size);
+      Node_Statement stmt;
+      stmt.statement_type = print_type;
+      stmt.statement_value.print = parse_print_at(tokens, &i);
+      new_tree[statements_num -1] = stmt;
       result_tree.statements_node = new_tree;
     }
     // FIX: this would crash if there is an identifier at the end of the file
-    else if (compare_token_to_string(tokens[i + 1], ":") && compare_token_to_string(tokens[i + 2], "=")) {
-      if (tokens[i].type != Identifier) {
-        error("expected an identifier in variable assigment");
-      }
-      Token var_name = tokens[i];
-      // get the number of tokens in the expresion, we add 3 to skip the var name, the ":" and the "="
-      int expresion_beginning = i +3;
-      while (tokens[i].type != Semi_colon) {
-        if (tokens[i].type == End_of_file) {
-          error("expected a semicolon");
-        }
-        i++;
-      }
-      int expresion_size = i - expresion_beginning;
-      new_tree[statements_num -1].statement_type = var_declaration_type;
-      new_tree[statements_num -1].statement_value.var_declaration.var_name = var_name;
-      new_tree[statements_num -1].statement_value.var_declaration.value = parse_expresion(&tokens[expresion_beginning], expresion_size);
+    else if (compare_token_to_string(tokens[i + 1], ":") && compare_token_to_string(tokens[i + 3], "=")) {
+      Node_Statement stmt;
+      stmt.statement_type = var_declaration_type;
+      stmt.statement_value.var_declaration = parse_var_declaration_at(tokens, &i);
+      new_tree[statements_num -1] = stmt;
       result_tree.statements_node = new_tree;
     }
     else if (compare_token_to_string(tokens[i + 1], "=")) {
-      if (tokens[i].type != Identifier) {
-        error("expected an identifier in variable assigment");
-      }
-      Token var_name = tokens[i];
-      // get the number of tokens in the expresion, we add 2 to skip the var name, the "="
-      int expresion_beginning = i +2;
-      while (tokens[i].type != Semi_colon) {
-        if (tokens[i].type == End_of_file) {
-          error("expected a semicolon");
-        }
-        i++;
-      }
-      int expresion_size = i - expresion_beginning;
-      new_tree[statements_num -1].statement_type = var_assignment_type;
-      new_tree[statements_num -1].statement_value.var_assignment.var_name = var_name;
-      new_tree[statements_num -1].statement_value.var_assignment.value = parse_expresion(&tokens[expresion_beginning], expresion_size);
+      Node_Statement stmt;
+      stmt.statement_type = var_assignment_type;
+      stmt.statement_value.var_assignment = parse_var_assigment_at(tokens, &i);
+      new_tree[statements_num -1] = stmt;
       result_tree.statements_node = new_tree;
     }
     else if (compare_token_to_string(tokens[i], "{")) {
-      Node_Scope scope = parse_scope_at(tokens, &i);
-      new_tree[statements_num -1].statement_type = scope_type;
-      new_tree[statements_num -1].statement_value.scope = scope;
+      Node_Statement stmt;
+      stmt.statement_type = scope_type;
+      stmt.statement_value.scope = parse_scope_at(tokens, &i);;
+      new_tree[statements_num -1] = stmt;
       result_tree.statements_node = new_tree;
     }
     else if (compare_token_to_string(tokens[i], "if")) {
-      // parse the condition
-      Node_Expresion condition;
-      Token * expr = &tokens[i + 1];
-      int expr_sz = i + 1;
-
-      // FIX: improve this loop, it is very unsafe
-      do { i++; } while (tokens[i].type != Curly_bracket);
-      expr_sz = i - expr_sz;
-      condition = parse_expresion(expr, expr_sz);
-
-      // parse the if body
-      Node_Scope scope = parse_scope_at(tokens, &i);
-      Node_If node_if = (Node_If) {.condition = condition, scope = scope};
-      new_tree[statements_num -1].statement_type = if_type;
-      new_tree[statements_num -1].statement_value.if_node = node_if;
-
-      if (compare_token_to_string(tokens[i + 1], "else")) {
-        i += 2;
-        new_tree[statements_num -1].statement_value.if_node.has_else_block = true;
-        Node_Scope else_block = parse_scope_at(tokens, &i);
-        new_tree[statements_num -1].statement_value.if_node.else_block = else_block;
-      } else {
-        new_tree[statements_num -1].statement_value.if_node.has_else_block = false;
-      }
-
+      Node_Statement stmt;
+      stmt.statement_type = if_type;
+      stmt.statement_value.if_node = parse_if_at(tokens, &i);;
+      new_tree[statements_num -1] = stmt;
       result_tree.statements_node = new_tree;
     }
     else if (compare_token_to_string(tokens[i], "while")) {
-      Node_Expresion condition;
-      Token * expr = &tokens[i + 1];
-      int expr_sz = i + 1;
-      // FIX: improve this loop, it is very unsafe
-      do { i++; } while (tokens[i].type != Curly_bracket);
-      expr_sz = i - expr_sz;
-      condition = parse_expresion(expr, expr_sz);
-
-      Node_Scope scope = parse_scope_at(tokens, &i);
-      Node_While node_while = (Node_While) {.condition = condition, .scope = scope};
-      new_tree[statements_num -1].statement_type = while_type;
-      new_tree[statements_num -1].statement_value.while_node = node_while;
+      Node_Statement stmt;
+      stmt.statement_type = while_type;
+      stmt.statement_value.while_node = parse_while_at(tokens, &i);;
+      new_tree[statements_num -1] = stmt;
       result_tree.statements_node = new_tree;
     }
     else {

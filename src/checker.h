@@ -87,7 +87,6 @@ void free_vars_list(Vars_list variables) {
 
 // check if a statement is valid, if it is not, report it and halt
 void check_statement(Vars_list * variables, Node_Statement stmt) {
-  // TODO: use a switch here
   switch (stmt.statement_type) {
     case var_declaration_type: {
       // check that when declaring a var there isnt another var with the same name
@@ -97,6 +96,9 @@ void check_statement(Vars_list * variables, Node_Statement stmt) {
       }
       else {
         append_var_to_var_list(variable, variables);
+      }
+      if (!compare_token_to_string(stmt.statement_value.var_declaration.type.type, "u64")) {
+        error("invalid type in variable declaration");
       }
       // check that the expresion in the statement is valid
       Node_Expresion expresion = stmt.statement_value.var_declaration.value;
@@ -119,7 +121,7 @@ void check_statement(Vars_list * variables, Node_Statement stmt) {
       if (!is_var_in_var_list(*variables, variable)) {
         error("variable has not been declared before");
       }
-      // check that the expresion is good
+      // check that the expresion is valid
       Node_Expresion expresion = stmt.statement_value.var_assignment.value;
       is_expresion_valid(*variables, expresion);
       break;

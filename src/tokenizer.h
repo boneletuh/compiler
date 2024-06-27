@@ -140,7 +140,7 @@ Token * lexer(char * string) {
       
       case identifier:
         new_token.type = Identifier;
-        if (!is_in_str(symbol, var_sym)) {
+        if (!is_in_str(symbol, var_sym) && !is_in_str(symbol, numb_sym)) {
           new_token.beginning = string + token_beginning;
           new_token.length = (unsigned short) (i - token_beginning);
           new_token.type = Identifier;
@@ -212,7 +212,7 @@ Token * lexer(char * string) {
 }
 
 
-bool compare_token_to_string(Token token, const char * string) {
+bool compare_token_to_string(const Token token, const char * string) {
   int i;
   for (i = 0; i < token.length && string[i] != '\0'; i++) {
     if (token.beginning[i] != string[i]) {
@@ -220,12 +220,7 @@ bool compare_token_to_string(Token token, const char * string) {
     }
   }
 
-  if (i == token.length && string[i] == '\0') {
-    return true;
-  }
-  else {
-    return false;
-  }
+  return i == token.length && string[i] == '\0';
 }
 
 bool compare_str_of_tokens(Token token1, Token token2) {

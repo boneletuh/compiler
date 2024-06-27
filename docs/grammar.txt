@@ -6,18 +6,24 @@ letter = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" |
              "_" |
              "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z" ;
 
-identifier = letter, {letter} ;
+identifier = letter, {letter | digit} ;
 
 operator = "+" | "-" | "*" | "/" | ">" | "<" | "==" ;
 
+
+Type = "u64";
 
 Expresion = number | identifier | Binary_operation | ("(", Expresion, ")") ;
 
 Binary_operation = Expresion, operator, Expresion ;
 
-Scope = "{", {Statement}, "}" ;
+Var_declaration = (identifier, ":", Type, "=", Expresion, ";") ;
 
-Progamm = {Statement} ;
+Var_assigment = (identifier, "=", Expresion, ";") ;
+
+Exit = ("exit", Expresion, ";") ;
+
+Scope = "{", {Statement}, "}" ;
 
 If = "if", Expresion, Scope |
      ["else", Scope] ;
@@ -26,10 +32,12 @@ While = "while", Expresion, Scope ;
 
 Print = "print", Expresion ;
 
-Statement = (identifier, ":", "=", Expresion, ";") |
-            (identifier, "=", Expresion, ";") |
-            ("exit", Expresion, ";") |
+Statement = Var_declaration |
+            Var_assigment |
+            Exit |
             Scope |
             If |
             While |
             Print ;
+
+Progamm = {Statement} ;

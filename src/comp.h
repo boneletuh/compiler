@@ -29,11 +29,9 @@ void free_scope(Node_Scope scope);
 void free_stmt(Node_Statement stmt) {
     switch (stmt.statement_type) {
       case var_declaration_type:
-        // var declaration node
         free_expresion(stmt.statement_value.var_declaration.value);
         break;
       case exit_node_type:
-        // exit node
         free_expresion(stmt.statement_value.exit_node.exit_code);
         break;
       case var_assignment_type:
@@ -56,7 +54,6 @@ void free_stmt(Node_Statement stmt) {
         free_expresion(stmt.statement_value.while_node.condition);
         free_scope(stmt.statement_value.while_node.scope);
         break;
-      // FIX: handle: scope, if, while
     }
 }
 

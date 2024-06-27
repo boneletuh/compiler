@@ -11,7 +11,7 @@ Operators:
  Associativity is always left to right,
  The binary operator precedences are:
   >		0
-  ==	0
+  ==  0
   <		0
   +		1
   -		1
