@@ -1,7 +1,11 @@
 CC := gcc
-CFLAGS := -O3 -s -Wall -Wextra -pedantic
+CFLAGS := -O3 -s -std=c23 -Wall -Wextra -pedantic
+CFLAGS_DEBUG := -g -std=c23 -Wall -Wextra -pedantic
 
-all: run
+all: compile
 
-run: src/comp.c
-	${CC} ${CFLAGS} $? -o src/comp
+compile: src/comp.c
+	${CC} ${CFLAGS} $? -o comp
+
+debug: src/comp.c
+	${CC} ${CFLAGS_DEBUG} -D DEBUG $? -o comp

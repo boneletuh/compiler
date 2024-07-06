@@ -26,7 +26,7 @@ void add_string_to_file(FILE * file_ptr, const char * string) {
  * * * * * * * * * * */
 
 void gen_C_scope(const Node_Scope scope, FILE * out_file_name);
-void gen_C_code(const Node_Program syntax_tree, char * out_file_name);
+void gen_C_code(const Node_Program syntax_tree, const char * out_file_name);
 
 void gen_C_expresion(const Node_Expresion expresion, FILE * file_ptr) {
   switch (expresion.expresion_type) {
@@ -85,8 +85,24 @@ void gen_C_expresion(const Node_Expresion expresion, FILE * file_ptr) {
       add_string_to_file(file_ptr, ")");
       break;
 
+    case expresion_unary_operation_type:
+      add_string_to_file(file_ptr, "(uint64_t)");
+      switch (expresion.expresion_value.expresion_unary_operation_value->operation_type) {
+        case unary_operation_addr_type:
+          add_string_to_file(file_ptr, "&");
+          break;
+
+        default:
+          implementation_error("unknown operation in unary expresion in C code gen");
+          break;
+      }
+      add_string_to_file(file_ptr, "(");
+      gen_C_expresion(expresion.expresion_value.expresion_unary_operation_value->expresion, file_ptr);
+      add_string_to_file(file_ptr, ")");
+      break;
+
     default:
-      implementation_error("unexpected type in expresion");
+      implementation_error("unexpected type in expresion while C binary operation generation");
       break;
   }
 }
@@ -171,7 +187,7 @@ void gen_C_scope(const Node_Scope scope, FILE * out_file_ptr) {
 }
 
 // it generates C code
-void gen_C_code(const Node_Program syntax_tree, char * out_file_name) {
+void gen_C_code(const Node_Program syntax_tree, const char * out_file_name) {
   FILE * out_file_ptr = create_file(out_file_name);
   add_string_to_file(out_file_ptr, "#include <stdlib.h>\n#include <stdio.h>\n#include <stdint.h>\nint main() {\n");
   for (int i = 0; i < syntax_tree.statements_count; i++) {
@@ -346,8 +362,28 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
       }
       break;
 
+    case expresion_unary_operation_type:
+      // perform the corresponding unary operation
+      switch (expresion.expresion_value.expresion_unary_operation_value->operation_type) {
+        case unary_operation_addr_type:;
+          // get the address of a variable
+          stack_size += 8;
+          int var_addr =  find_var_stack_place(vars, expresion.expresion_value.expresion_unary_operation_value->expresion.expresion_value.expresion_identifier_value);
+          // put the result into the stack top
+          add_string_to_file(file_ptr, "mov qword [rbp - ");
+          fprintf(file_ptr, "%d", stack_size);
+          add_string_to_file(file_ptr, "], ");
+          fprintf(file_ptr, "%d\n", var_addr);
+          break;
+
+        default:
+          // this operation has not been added yet or was not filtered by the checker
+          implementation_error("unkown unary operation type while C code generation");
+      }
+      break;
+
   default:
-    implementation_error("unexpected type in expresion");
+    implementation_error("unexpected type in expresion while ASM binary operation generation");
     break;
   }
 }
@@ -538,13 +574,13 @@ void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node
 }
 
 // it generates NASM code
-void gen_NASM_code(const Node_Program syntax_tree, char * out_file_name) {
+void gen_NASM_code(const Node_Program syntax_tree, const char * out_file_name) {
   FILE * out_file_ptr = create_file(out_file_name);
   add_string_to_file(out_file_ptr, "bits 64\n"); // targeting 64 bits
   add_string_to_file(out_file_ptr, "global _start\n"); // needed for linking in ELF format
   add_string_to_file(out_file_ptr, "_start:\n");
   add_string_to_file(out_file_ptr, "push rbp\n"); // setting up the stack
-  add_string_to_file(out_file_ptr, "mov rbp, rsp\n");
+  add_string_to_file(out_file_ptr, "mov rbp, rsp\n\n");
   int stack_size = 0;
 
   // this will hold all the variables from all the scopes

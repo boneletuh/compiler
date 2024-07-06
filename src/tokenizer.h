@@ -50,7 +50,7 @@ Token * lexer(char * string) {
 
   const char * var_sym = "abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const char * numb_sym = "0123456789";
-  const char * oper_sym = "+-*/=%^><";
+  const char * oper_sym = "+-*/=%^><&";
   const char * separ_sym = " \r\t\n";
 
   int token_beginning = 0;
@@ -223,7 +223,7 @@ bool compare_token_to_string(const Token token, const char * string) {
   return i == token.length && string[i] == '\0';
 }
 
-bool compare_str_of_tokens(Token token1, Token token2) {
+bool compare_str_of_tokens(const Token token1, const Token token2) {
   if (token1.length != token2.length) {
     return false;
   }
@@ -234,6 +234,16 @@ bool compare_str_of_tokens(Token token1, Token token2) {
   }
   return true;
 }
+
+#ifdef DEBUG
+void print_token_stream(const Token * tokens, const int size) {
+  for (int i = 0; i < size; i++) {
+    Token token = tokens[i];
+    printf("%.*s\n", token.length, token.beginning);
+  }
+  putchar('\n');
+}
+#endif
 
 
 #endif

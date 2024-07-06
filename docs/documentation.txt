@@ -19,6 +19,8 @@ Operators:
   *		2
   /		2
   ^		3
+ The binary operator precedences are:
+  &   4
 
 Variables:
 -Declaration:
@@ -32,36 +34,36 @@ Variables:
    var_name = expr;
  The variable must have been declared to assign a value to it.
 
--Scopes:
- -Syntax:
-   "{" + staments + "}"
+Scopes:
+-Syntax:
+  "{" + staments + "}"
   Scopes without staments are valid.
  All the variables declared inside a scope will be delete when the scope ends.
  Declaring a variable with the same name as another outside the scope is not allowed.
  Scopes can be recursive.
 
--Conditionals:
- -Syntax:
-   "if" + condition + scope + ("else" + scope)
+Conditionals:
+-Syntax:
+  "if" + condition + scope + ("else" + scope)
  The result of the condition expression will be treated as a boolean value;
  if the result of the expression is non zero the scope will be executed, otherwise,
  if there is an "else" statement following it will be executed.
 
--Loops:
- -While:
-  -Syntax:
-   "while" + condition + scope
-  The value of the condition will be treated as boolean.
-  The scope will execute while the condition returns a non zero value.
-
--Input/Output:
- The IO is not standardized yet.
- -Printing:
-   -Syntax:
-     "print" + expr + ";"
-   Evaluates the expression and the lower 8 bits of the value will be printed using its ASCII representation.
-
--Exiting:
+Loops:
+-While:
  -Syntax:
-  "exit" + expr + ";"
+  "while" + condition + scope
+ The value of the condition will be treated as boolean.
+ The scope will execute while the condition returns a non zero value.
+
+Input/Output:
+ The IO is not standardized yet.
+-Printing:
+ -Syntax:
+   "print" + expr + ";"
+ Evaluates the expression and the lower 8 bits of the value will be printed using its ASCII representation.
+
+Exiting:
+-Syntax:
+ "exit" + expr + ";"
  When this statement is executed the program will end, returning the expr value as an exit code.

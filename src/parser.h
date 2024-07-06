@@ -10,7 +10,16 @@
 
 
 typedef struct Node_Type {
-  Token type;
+  Token token;
+  enum {
+    type_ptr_type,
+    type_primitive_type,
+  } type_type;
+  union {
+    struct Node_Type * type_ptr_value;
+    Token type_primitive_value;
+  } type_value;
+
 } Node_Type;
 
 typedef struct Node_Number {
@@ -21,13 +30,15 @@ typedef struct Node_Expresion {
   enum {
     expresion_number_type,
     expresion_identifier_type,
-    expresion_binary_operation_type
+    expresion_binary_operation_type,
+    expresion_unary_operation_type
   } expresion_type;
   union {
     Node_Number expresion_number_value;
     Token expresion_identifier_value;
-    // binary operation is a pointer so it can be recursive
+    // binary and unary operations are a pointer so they can be recursive
     struct Node_Binary_Operation * expresion_binary_operation_value;
+    struct Node_Unary_Operation * expresion_unary_operation_value;
   } expresion_value;
 } Node_Expresion;
 
@@ -46,6 +57,13 @@ typedef struct Node_Binary_Operation {
   } operation_type;
   Node_Expresion right_side;
 } Node_Binary_Operation;
+
+typedef struct Node_Unary_Operation {
+  Node_Expresion expresion;
+  enum {
+    unary_operation_addr_type,
+  } operation_type;
+} Node_Unary_Operation;
 
 typedef struct Node_Exit {
   Node_Expresion exit_code;
@@ -114,8 +132,8 @@ typedef struct Node_Program {
 Node_Program parser(const Token * tokens);
 Node_Scope parse_scope(const Token * tokens, const int tokens_count);
 
-// convert the string of a operation token into a enum that is more manageable form
-int get_operation_type(Token operation) {
+// convert the string of a binary operation token into a enum that is a more manageable form
+int get_binary_operation_type(Token operation) {
   int type;
   if (compare_token_to_string(operation, "+")) {
     type = binary_operation_sum_type;
@@ -145,14 +163,26 @@ int get_operation_type(Token operation) {
     type = binary_operation_equ_type;
   }
   else {
-    error("unkown operation in expresion");
+    error("unkown binary operation in expresion");
   }
   return type;
 }
 
-// get the precedence of an operator acording to the documentation
+// convert the string of a unary operation token into a enum that is a more manageable form
+int get_unary_operation_type(Token operation) {
+  int type;
+  if (compare_token_to_string(operation, "&")) {
+    type = unary_operation_addr_type;
+  }
+  else {
+    error("unkown unary operation in expresion");
+  }
+  return type;
+}
+
+// get the precedence of a binary operator acording to the documentation
 // the closest the value to 0 the less the precedence is
-int get_operation_precedence(Token operation) {
+int get_binary_operation_precedence(Token operation) {
   const char * opers[] = {">", "==", "<", "+", "-", "%", "*", "/", "^"};
   const int precedes[] = { 0 ,  0 ,   0 ,  1 ,  1 ,  2 ,  2 ,  2 ,  3 };
   // find the idx of the matching string and return the corresponding precedence
@@ -161,7 +191,23 @@ int get_operation_precedence(Token operation) {
       return precedes[i];
     }
   }
-  error("unkown precedence of operation");
+  error("unkown precedence of binary operation");
+  // unreachable
+  return -1;
+}
+
+// get the precedence of an unary operator acording to the documentation
+// the closest the value to 0 the less the precedence is
+int get_unary_operation_precedence(Token operation) {
+  const char * opers[] = {"&"};
+  const int precedes[] = { 4 };
+  // find the idx of the matching string and return the corresponding precedence
+  for (unsigned i = 0; i < sizeof(opers)/sizeof(*opers); i++) {
+    if (compare_token_to_string(operation, opers[i])) {
+      return precedes[i];
+    }
+  }
+  error("unkown precedence of unary operation");
   // unreachable
   return -1;
 }
@@ -228,12 +274,20 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
       result = parse_expresion(&expresion_beginning[1], size -2);
       return result;
     }
-    int left_side_beginning = 0;
-    int left_side_size;
     Token operation;
     int min_oper_preced = BIG_NUM;
+    // if the operation to parse is binary
+    bool is_operation_bin = false;
+    int left_side_beginning = 0;
+    int left_side_size;
     int right_side_beginning;
     int right_side_size;
+    // if the operation to parse is unary
+    bool is_operation_uni = false;
+    int uni_expresion_beginning;
+    int uni_expresion_size;
+    // indicates if the last token was an operation, it begins being true. used for distinguishing binary and unary operations
+    bool was_last_op_or_null = true;
     // find the beginning and size of the left and right side of the expresion
     int i;
     for (i = 0; i < size; i++) {
@@ -243,28 +297,56 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
       }
       // find the operation with the lowest precedence
       if (expresion_beginning[i].type == Operation) {
-          if (get_operation_precedence(expresion_beginning[i]) < min_oper_preced) {
-            min_oper_preced = get_operation_precedence(expresion_beginning[i]);
-            left_side_size = i;
-            operation = expresion_beginning[i];
-            right_side_beginning = i +1;
+        if (was_last_op_or_null && !is_operation_bin) {
+          is_operation_uni = true;
+          min_oper_preced = get_unary_operation_precedence(expresion_beginning[i]);
+          uni_expresion_beginning = i + 1;
+          operation = expresion_beginning[i];
         }
+        else if (!was_last_op_or_null && get_binary_operation_precedence(expresion_beginning[i]) < min_oper_preced) {
+          is_operation_bin = true;
+          is_operation_uni = false;
+          min_oper_preced = get_binary_operation_precedence(expresion_beginning[i]);
+          left_side_size = i;
+          operation = expresion_beginning[i];
+          right_side_beginning = i + 1;
+        }
+        was_last_op_or_null = true;
+      }
+      else {
+        was_last_op_or_null = false;
       }
     }
     // if it did not found an operation report it
     if (min_oper_preced == BIG_NUM) {
       error("expected an operation in expresion");
     }
-    right_side_size = i - right_side_beginning;
-    // create a new node a parse each side of the expresion
-    Node_Binary_Operation * bin_operation = smalloc(sizeof(Node_Binary_Operation));
-    // parse each side of the binary expresion recursively
-    bin_operation->left_side = parse_expresion(&expresion_beginning[left_side_beginning], left_side_size);
-    bin_operation->operation_type = get_operation_type(operation);
-    bin_operation->right_side = parse_expresion(&expresion_beginning[right_side_beginning], right_side_size);
+    if (is_operation_bin) {
+      right_side_size = i - right_side_beginning;
+      // create a new node and parse each side of the expresion
+      Node_Binary_Operation * bin_operation = smalloc(sizeof(Node_Binary_Operation));
+      // parse each side of the binary expresion recursively
+      bin_operation->left_side = parse_expresion(&expresion_beginning[left_side_beginning], left_side_size);
+      bin_operation->operation_type = get_binary_operation_type(operation);
+      bin_operation->right_side = parse_expresion(&expresion_beginning[right_side_beginning], right_side_size);
 
-    result.expresion_value.expresion_binary_operation_value = bin_operation;
-    result.expresion_type = expresion_binary_operation_type;
+      result.expresion_value.expresion_binary_operation_value = bin_operation;
+      result.expresion_type = expresion_binary_operation_type;
+    }
+    else if (is_operation_uni) {
+      uni_expresion_size = i - uni_expresion_beginning;
+      // create a new node and parse the expresion
+      Node_Unary_Operation * uni_operation = smalloc(sizeof(Node_Unary_Operation));
+      // parse the unary expresion recursively
+      uni_operation->expresion = parse_expresion(&expresion_beginning[uni_expresion_beginning], uni_expresion_size);
+      uni_operation->operation_type = get_unary_operation_type(operation);
+
+      result.expresion_value.expresion_unary_operation_value = uni_operation;
+      result.expresion_type = expresion_unary_operation_type;
+    }
+    else {
+      error("expected an operation in expresion while parsing it");
+    }
   }
   return result;
 }
@@ -307,10 +389,32 @@ int next_asign_offset(const Token * beginning) {
 
 // parses a type definition
 Node_Type parse_type(const Token * type_beginning, const int type_sz) {
-  if (type_sz != 1) {
-    implementation_error("compund type are not implemented");
+  if (type_sz == 0) {
+    error("expected a type in varable declaration");
   }
-  Node_Type type = (Node_Type) { .type=*type_beginning };
+  if (type_sz == 1) {
+    if (!compare_token_to_string(type_beginning[0], "u64")) {
+      error("expected a type");
+    } 
+    Node_Type type = {
+      .token=type_beginning[0],
+      .type_type=type_primitive_type,
+      .type_value.type_primitive_value=type_beginning[0]
+    };
+    return type;
+  }
+  Node_Type type;
+  int i = 0;
+  if (compare_token_to_string(type_beginning[i], "ptr")) {
+    type.token = type_beginning[i];
+    type.type_type = type_ptr_type;
+    type.type_value.type_ptr_value = smalloc(sizeof(*type.type_value.type_ptr_value));
+    *type.type_value.type_ptr_value = parse_type(&type_beginning[i + 1], type_sz - 1); // add 1 to skip the already parsed "ptr", and sub 1 to account for that
+    i += 1;
+  }
+  else {
+    error("expected a type decorator");
+  }
   return type;
 }
 
@@ -324,6 +428,7 @@ Node_Scope parse_scope(const Token * tokens, const int tokens_count) {
                                      };
   memcpy(new_tokens, tokens, tokens_count * sizeof(Token));
   Node_Program temp_program = parser(new_tokens);
+  free(new_tokens);
   Node_Scope scope;
   scope.statements_count = temp_program.statements_count;
   scope.statements_node = temp_program.statements_node;
@@ -407,11 +512,11 @@ Node_Var_declaration parse_var_declaration_at(const Token * tokens, int * idx) {
   return node_var_declaration;
 }
 
-// parses variable assigment statement
+// parses variable assignment statement
 // tokens is the stream of tokens of the program
 // index is indicates the variable name token in the tokens
 // index will be updated to the corresponding ';'
-Node_Var_assignment parse_var_assigment_at(const Token * tokens, int * idx) {
+Node_Var_assignment parse_var_assignment_at(const Token * tokens, int * idx) {
   if (tokens[*idx].type != Identifier) {
     error("expected an identifier in variable assigment");
   }
@@ -504,8 +609,7 @@ Node_Program parser(const Token * tokens) {
       new_tree[statements_num -1] = stmt;
       result_tree.statements_node = new_tree;
     }
-    // FIX: this would crash if there is an identifier at the end of the file
-    else if (compare_token_to_string(tokens[i + 1], ":") && compare_token_to_string(tokens[i + 3], "=")) {
+    else if (compare_token_to_string(tokens[i + 1], ":")) {
       Node_Statement stmt;
       stmt.statement_type = var_declaration_type;
       stmt.statement_value.var_declaration = parse_var_declaration_at(tokens, &i);
@@ -515,7 +619,7 @@ Node_Program parser(const Token * tokens) {
     else if (compare_token_to_string(tokens[i + 1], "=")) {
       Node_Statement stmt;
       stmt.statement_type = var_assignment_type;
-      stmt.statement_value.var_assignment = parse_var_assigment_at(tokens, &i);
+      stmt.statement_value.var_assignment = parse_var_assignment_at(tokens, &i);
       new_tree[statements_num -1] = stmt;
       result_tree.statements_node = new_tree;
     }

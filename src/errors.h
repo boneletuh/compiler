@@ -13,21 +13,26 @@ void error(char * string) {
 
 // error that should only appeard while developing the compiler
 // the user of the language sould not see this type of error
-void implementation_error(char * string) {
+void implementation_error(const char * string) {
   printf("Implementation Error: %s\n", string);
   exit(2);
 }
 
 // for errors that happend while dealing with files
-void file_error(char * string) {
+void file_error(const char * string) {
   printf("File Error: %s\n", string);
   exit(3);
 }
 
 // for errors that happend when calling malloc() or realloc() or something like that
-void allocation_error(char * string) {
+void allocation_error(const char * string) {
   printf("Memory Allocation Error: %s\n", string);
   exit(4);
+}
+
+// general warning fuction
+void warning(const char * string) {
+  printf("Warning: %s\n", string);
 }
 
 #endif

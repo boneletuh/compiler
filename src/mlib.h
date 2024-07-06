@@ -48,15 +48,10 @@ char * file_contents(FILE * fptr) {
   return out;
 }
 
-typedef enum bool {
-  false,
-  true
-} bool;
-
 // returns a ptr to the beginning of the extension in the string
 // the extension start at the last dot in the file name, including the dot
-char * get_file_extension(char * file_name) {
-  char * last_dot = NULL;
+const char * get_file_extension(const char * file_name) {
+  const char * last_dot = NULL;
   int i;
   for (i = 0; file_name[i] != '\0'; i++) {
     // find the last dot

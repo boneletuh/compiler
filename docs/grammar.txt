@@ -8,14 +8,18 @@ letter = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" |
 
 identifier = letter, {letter | digit} ;
 
-operator = "+" | "-" | "*" | "/" | ">" | "<" | "==" ;
+bin_operator = "+" | "-" | "*" | "/" | ">" | "<" | "==" ;
+
+uni_operator = "&" ;
 
 
-Type = "u64";
+Type = {"ptr"}, "u64";
 
-Expresion = number | identifier | Binary_operation | ("(", Expresion, ")") ;
+Expresion = number | identifier | Binary_operation | Unary_operation | ("(", Expresion, ")") ;
 
-Binary_operation = Expresion, operator, Expresion ;
+Binary_operation = Expresion, bin_operator, Expresion ;
+
+Unary_operation = uni_operator, Expresion;
 
 Var_declaration = (identifier, ":", Type, "=", Expresion, ";") ;
 
