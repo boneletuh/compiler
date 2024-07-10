@@ -62,6 +62,7 @@ typedef struct Node_Unary_Operation {
   Node_Expresion expresion;
   enum {
     unary_operation_addr_type,
+    unary_operation_deref_type
   } operation_type;
 } Node_Unary_Operation;
 
@@ -128,6 +129,208 @@ typedef struct Node_Program {
   int statements_count;
 } Node_Program;
 
+
+#ifdef DEBUG
+
+static char * D_uni_op_type_lookup[] = {
+  [unary_operation_addr_type] = "&",
+  [unary_operation_deref_type] = "*"
+};
+char * enum_to_uni_op_type(int op_type) {
+  return D_uni_op_type_lookup[op_type];
+}
+
+static char * D_bin_op_type_lookup[] = {
+  [binary_operation_sum_type] = "+",
+  [binary_operation_sub_type] = "-",
+  [binary_operation_mul_type] = "*",
+  [binary_operation_div_type] = "/",
+  [binary_operation_mod_type] = "%",
+  [binary_operation_exp_type] = "^",
+  [binary_operation_big_type] = ">",
+  [binary_operation_les_type] = "<",
+  [binary_operation_equ_type] = "=="
+};
+char * enum_to_bin_op_type(int op_type) {
+  return D_bin_op_type_lookup[op_type];
+}
+
+void D_print_expresion(Node_Expresion expresion, int depth) {
+  switch (expresion.expresion_type) {
+    case expresion_number_type:
+      printf("%*sNode expression number:\n", depth, "");
+      depth++;
+
+      printf("%*s", depth, "");
+      D_print_tokens(&expresion.expresion_value.expresion_number_value.number_token, 1);
+      break;
+
+    case expresion_identifier_type:
+      printf("%*sNode expression identifier:\n", depth, "");
+      depth++;
+
+      printf("%*s", depth, "");
+      D_print_tokens(&expresion.expresion_value.expresion_identifier_value, 1);
+      break;
+
+    case expresion_binary_operation_type:
+      printf("%*sNode binary operation:\n", depth, "");
+      depth++;
+
+      printf("%*s%s\n", depth, "", enum_to_bin_op_type((int)expresion.expresion_value.expresion_binary_operation_value->operation_type));
+      depth++;
+
+      D_print_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side, depth);
+
+      D_print_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side, depth);
+      break;
+
+    case expresion_unary_operation_type:
+      printf("%*sNode unary operation:\n", depth, "");
+      depth++;
+
+      printf("%*s%s\n", depth, "", enum_to_uni_op_type((int)expresion.expresion_value.expresion_unary_operation_value->operation_type));
+
+      D_print_expresion(expresion.expresion_value.expresion_unary_operation_value->expresion, depth);
+      break;
+  }
+}
+
+void D_print_type(Node_Type type, int depth) {
+  if (type.type_type == type_primitive_type) {
+    printf("%*sNode type primitive:\n", depth, "");
+    depth++;
+
+    printf("%*s", depth, "");
+    D_print_tokens(&type.type_value.type_primitive_value, 1);
+  }
+  else if (type.type_type == type_ptr_type) {
+    printf("%*sNode type ptr:\n", depth, "");
+    depth++;
+
+    printf("%*sptr\n", depth, "");
+    depth++;
+
+    D_print_type(*type.type_value.type_ptr_value, depth);
+  }
+  else {
+    implementation_error("in debug function print type unkown type of type");
+  }
+}
+
+void D_print_statement(Node_Statement stmt, int depth) {
+  switch (stmt.statement_type) {
+    case var_declaration_type:
+      Node_Var_declaration var_decl = stmt.statement_value.var_declaration;
+      printf("%*sNode var decl:\n", depth, "");
+      depth++;
+
+      printf("%*sNode var decl name:\n", depth, "");
+      printf("%*s", depth+1, "");
+      D_print_tokens(&var_decl.var_name, 1);
+
+      printf("%*sNode var decl type:\n", depth, "");
+      D_print_type(var_decl.type, depth+1);
+
+      printf("%*sNode var decl expr:\n", depth, "");
+      D_print_expresion(var_decl.value, depth+1);
+      break;
+
+    case exit_node_type:
+      Node_Exit exit_node = stmt.statement_value.exit_node;
+      printf("%*sNode exit:\n", depth, "");
+      depth++;
+
+      printf("%*sNode exit expr:\n", depth, "");
+      D_print_expresion(exit_node.exit_code, depth+1);
+      break;
+
+    case print_type:
+      Node_Print print_node = stmt.statement_value.print;
+      printf("%*sNode print:\n", depth, "");
+      depth++;
+
+      printf("%*sNode print expr:\n", depth, "");
+      D_print_expresion(print_node.chr, depth+1);
+      break;
+
+    case var_assignment_type:
+      Node_Var_assignment var_assign = stmt.statement_value.var_assignment;
+      printf("%*sNode var assign:\n", depth, "");
+      depth++;
+
+      printf("%*sNode var assign name:\n", depth, "");
+      printf("%*s", depth+1, "");
+      D_print_tokens(&var_assign.var_name, 1);
+
+      printf("%*sNode var assign expr:\n", depth, "");
+      D_print_expresion(var_assign.value, depth+1);
+      break;
+
+    case scope_type:
+      Node_Scope scope = stmt.statement_value.scope;
+      printf("%*sNode scope:\n", depth, "");
+      depth++;
+      printf("%*sStatements count: %d\n", depth, "", scope.statements_count);
+
+      for (int i = 0; i < scope.statements_count; i++) {
+        D_print_statement(scope.statements_node[i], depth);
+        putchar('\n');
+      }
+      break;
+
+    case if_type:
+      Node_If if_node = stmt.statement_value.if_node;
+      printf("%*sNode if:\n", depth, "");
+      depth++;
+
+      printf("%*sNode if condition:\n", depth, "");
+      D_print_expresion(if_node.condition, depth+1);
+
+      printf("%*sNode if scope:\n", depth, "");
+      depth++;
+      printf("%*sStatements count: %d\n", depth, "", if_node.scope.statements_count);
+
+      for (int i = 0; i < if_node.scope.statements_count; i++) {
+        D_print_statement(if_node.scope.statements_node[i], depth);
+        putchar('\n');
+      }
+      if (if_node.has_else_block) {
+        implementation_error("monkey poop");
+      }
+      break;
+
+    case while_type:
+      Node_While while_node = stmt.statement_value.while_node;
+      printf("%*sNode while:\n", depth, "");
+      depth++;
+
+      printf("%*sNode while condition:\n", depth, "");
+      D_print_expresion(while_node.condition, depth+1);
+
+      printf("%*sNode while scope:\n", depth, "");
+      depth++;
+      printf("%*sStatements count: %d\n", depth, "", while_node.scope.statements_count);
+
+      for (int i = 0; i < while_node.scope.statements_count; i++) {
+        D_print_statement(while_node.scope.statements_node[i], depth);
+        putchar('\n');
+      }
+      break;
+  }
+}
+
+void D_print_syntax_tree(Node_Program tree, int depth) {
+  printf("Node program:\n");
+  depth++;
+  for (int i = 0; i < tree.statements_count; i++) {
+    D_print_statement(tree.statements_node[i], depth);
+    putchar('\n');
+  }
+}
+#endif
+
+
 // predeclare this functions to allow mutual recursion
 Node_Program parser(const Token * tokens);
 Node_Scope parse_scope(const Token * tokens, const int tokens_count);
@@ -174,6 +377,9 @@ int get_unary_operation_type(Token operation) {
   if (compare_token_to_string(operation, "&")) {
     type = unary_operation_addr_type;
   }
+  else if (compare_token_to_string(operation, "*")) {
+    type = unary_operation_deref_type;
+  }
   else {
     error("unkown unary operation in expresion");
   }
@@ -199,8 +405,8 @@ int get_binary_operation_precedence(Token operation) {
 // get the precedence of an unary operator acording to the documentation
 // the closest the value to 0 the less the precedence is
 int get_unary_operation_precedence(Token operation) {
-  const char * opers[] = {"&"};
-  const int precedes[] = { 4 };
+  const char * opers[] = {"&", "*"};
+  const int precedes[] = { 4 ,  4 };
   // find the idx of the matching string and return the corresponding precedence
   for (unsigned i = 0; i < sizeof(opers)/sizeof(*opers); i++) {
     if (compare_token_to_string(operation, opers[i])) {
@@ -297,13 +503,14 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
       }
       // find the operation with the lowest precedence
       if (expresion_beginning[i].type == Operation) {
-        if (was_last_op_or_null && !is_operation_bin) {
+        if (was_last_op_or_null && !is_operation_bin && !is_operation_uni) {
+          // found a unary operation
           is_operation_uni = true;
           min_oper_preced = get_unary_operation_precedence(expresion_beginning[i]);
           uni_expresion_beginning = i + 1;
           operation = expresion_beginning[i];
         }
-        else if (!was_last_op_or_null && get_binary_operation_precedence(expresion_beginning[i]) < min_oper_preced) {
+        else if (!was_last_op_or_null && get_binary_operation_precedence(expresion_beginning[i]) <= min_oper_preced) {
           is_operation_bin = true;
           is_operation_uni = false;
           min_oper_preced = get_binary_operation_precedence(expresion_beginning[i]);

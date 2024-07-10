@@ -82,22 +82,26 @@ Node_Type get_type_of_expresion(const Vars_list vars, const Node_Expresion expre
       type.type_value.type_ptr_value = smalloc(sizeof(*type.type_value.type_ptr_value)); // FIX: this leaks memory, too bad
       *type.type_value.type_ptr_value = get_type_of_expresion(vars, uni_expresion);
     }
+    // if the operation is the dereference operator `*`, the returned type is type the pointer holds
+    else if (uni_operation.operation_type == unary_operation_deref_type) {
+      type = *get_type_of_expresion(vars, uni_expresion).type_value.type_ptr_value;
+    }
     else {
       type = get_type_of_expresion(vars, uni_expresion);
     }
     return type;
   }
-  // TODO: check if the operation is allowed with the given operation
   if (expresion.expresion_type == expresion_binary_operation_type) {
     Node_Binary_Operation bin_operation = *expresion.expresion_value.expresion_binary_operation_value;
     Node_Expresion lhs_expr = bin_operation.left_side;
     Node_Expresion rhs_expr = bin_operation.right_side;
     Node_Type lhs_type = get_type_of_expresion(vars, lhs_expr);
     Node_Type rhs_type = get_type_of_expresion(vars, rhs_expr);
-    // FIX: the resolution of types conflicts in operations
-    if (!compare_2_types(lhs_type, rhs_type)) {
-      warning("implicit convertion between ptr and u64");
+    // if any of the operands is a pointer throw an error
+    if (lhs_type.type_type == type_ptr_type || rhs_type.type_type == type_ptr_type) {
+      error("can not operate with a pointer");
     }
+    // does not matter if its `lhs_type` or `rhs_type` 
     return lhs_type;
   }
   if (expresion.expresion_type == expresion_number_type) {
@@ -140,10 +144,23 @@ bool is_expresion_valid(const Vars_list scopes, const Node_Expresion expresion) 
     is_expresion_valid(scopes, expresion.expresion_value.expresion_binary_operation_value->right_side);
   }
   else if (expresion.expresion_type == expresion_unary_operation_type) {
-    if (expresion.expresion_value.expresion_unary_operation_value->expresion.expresion_type != expresion_identifier_type) {
-      error("can only take the address of a variable");
+    Node_Unary_Operation uni_operation = *expresion.expresion_value.expresion_unary_operation_value;
+    if (uni_operation.operation_type == unary_operation_addr_type) {
+      // can only get the address of a variable
+      if (uni_operation.expresion.expresion_type != expresion_identifier_type) {
+        error("can only take the address of a variable");
+      }
     }
-    is_expresion_valid(scopes, expresion.expresion_value.expresion_unary_operation_value->expresion);
+    else if (uni_operation.operation_type == unary_operation_deref_type) {
+      // can only dereference a pointer
+      if (get_type_of_expresion(scopes, uni_operation.expresion).type_type != type_ptr_type) {
+        error("can only dereference a pointer");
+      }
+    }
+    else {
+      implementation_error("unkown type of unary operation while checking");
+    }
+    is_expresion_valid(scopes, uni_operation.expresion);
   }
   return true;
 }
@@ -233,6 +250,12 @@ void check_statement(Vars_list * variables, const Node_Statement stmt) {
       // check that the expresion is valid
       Node_Expresion expresion = stmt.statement_value.var_assignment.value;
       is_expresion_valid(*variables, expresion);
+      // check that the types of the variable and the expression match
+      Node_Type var_type = get_symbol_from_token(*variables, variable).type;
+      Node_Type expr_type = get_type_of_expresion(*variables, expresion);
+      if (!compare_2_types(var_type, expr_type)) {
+        error("the type of the expression and the variable does not match");
+      }
       break;
     }
     case scope_type: {

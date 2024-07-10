@@ -42,35 +42,35 @@ void free_expresion(Node_Expresion expresion) {
 void free_scope(Node_Scope scope);
 
 void free_stmt(Node_Statement stmt) {
-    switch (stmt.statement_type) {
-      case var_declaration_type:
-        free_expresion(stmt.statement_value.var_declaration.value);
-        free_type(stmt.statement_value.var_declaration.type);
-        break;
-      case exit_node_type:
-        free_expresion(stmt.statement_value.exit_node.exit_code);
-        break;
-      case var_assignment_type:
-        free_expresion(stmt.statement_value.var_assignment.value);
-        break;
-      case print_type:
-        free_expresion(stmt.statement_value.print.chr);
-        break;
-      case scope_type:
-        free_scope(stmt.statement_value.scope);
-        break;
-      case if_type:
-        free_expresion(stmt.statement_value.if_node.condition);
-        free_scope(stmt.statement_value.if_node.scope);
-        if (stmt.statement_value.if_node.has_else_block) {
-          free_scope(stmt.statement_value.if_node.else_block);
-        }
-        break;
-      case while_type:
-        free_expresion(stmt.statement_value.while_node.condition);
-        free_scope(stmt.statement_value.while_node.scope);
-        break;
-    }
+  switch (stmt.statement_type) {
+    case var_declaration_type:
+      free_expresion(stmt.statement_value.var_declaration.value);
+      free_type(stmt.statement_value.var_declaration.type);
+      break;
+    case exit_node_type:
+      free_expresion(stmt.statement_value.exit_node.exit_code);
+      break;
+    case var_assignment_type:
+      free_expresion(stmt.statement_value.var_assignment.value);
+      break;
+    case print_type:
+      free_expresion(stmt.statement_value.print.chr);
+      break;
+    case scope_type:
+      free_scope(stmt.statement_value.scope);
+      break;
+    case if_type:
+      free_expresion(stmt.statement_value.if_node.condition);
+      free_scope(stmt.statement_value.if_node.scope);
+      if (stmt.statement_value.if_node.has_else_block) {
+        free_scope(stmt.statement_value.if_node.else_block);
+      }
+      break;
+    case while_type:
+      free_expresion(stmt.statement_value.while_node.condition);
+      free_scope(stmt.statement_value.while_node.scope);
+      break;
+  }
 }
 
 void free_scope(Node_Scope scope) {

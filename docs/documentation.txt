@@ -19,20 +19,30 @@ Operators:
   *		2
   /		2
   ^		3
- The binary operator precedences are:
+ The unary operator precedences are:
   &   4
+  *   4
+
+ Can not operate with a pointer.
+ The addition `+`, substraction `-`, multiplication `*` and division `/`
+  are normal unsigned integer arithmetic operations.
+ The get address operator `&` returns the addres of its operand which has to be a variable.
+ The dereference operator `*` returns the value its operand was pointing to, the operand has to be a pointer.
+
 
 Variables:
 -Declaration:
  -Syntax:
-   var_name : = expr ;
- You can not declare two variables with the same name.
- You can not use a variable which has not been declared.
+   var_name : type = expr ;
+ Two variables with the same name can not be declared.
+ A variable which has not been declared can not be used.
+ The type of the declaration must match the type of the expression
 
 -Assignment:
  -Syntax:
    var_name = expr;
  The variable must have been declared to assign a value to it.
+ The type of the expression must match the type given before to the variable
 
 Scopes:
 -Syntax:

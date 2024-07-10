@@ -6,6 +6,7 @@
 
 #define NULL_TOKEN (Token) { .beginning=NULL, .length=0, .type=End_of_file }
 
+
 typedef struct Token {
   char * beginning;
   unsigned short length;
@@ -21,6 +22,17 @@ typedef struct Token {
   } type;
 } Token;
 
+
+#ifdef DEBUG
+void D_print_tokens(const Token * tokens, const int size) {
+  for (int i = 0; i < size; i++) {
+    Token token = tokens[i];
+    printf("%.*s\n", token.length, token.beginning);
+  }
+}
+#endif
+
+
 bool is_in_str(char symbol, const char * string) {
   for (int i = 0; string[i] != '\0'; i++) {
     if (string[i] == symbol) {
@@ -30,7 +42,7 @@ bool is_in_str(char symbol, const char * string) {
   return false;
 }
 
-
+// appends a token to the end of the array of tokens
 Token * append_token(Token * tokens, int tokens_count, const Token token) {
   tokens_count += 1;
   tokens = srealloc(tokens, sizeof(Token) * (tokens_count + 1));
@@ -50,7 +62,7 @@ Token * lexer(char * string) {
 
   const char * var_sym = "abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const char * numb_sym = "0123456789";
-  const char * oper_sym = "+-*/=%^><&";
+  const char * oper_sym = "+-*/%^><&";
   const char * separ_sym = " \r\t\n";
 
   int token_beginning = 0;
@@ -78,13 +90,40 @@ Token * lexer(char * string) {
           i--;
         }
 
+        else if (symbol == '=') {
+          // check for equality operator
+          if (string[i + 1] == '=') {
+            new_token.beginning = string + token_beginning;
+            new_token.length = 2;
+            new_token.type = Operation;
+
+            token_array = append_token(token_array, token_count, new_token);
+            token_count++;
+
+            // add 1 because the token is 1 character longer
+            i += 1;
+            token_beginning = i;
+            mode = searching_token;            
+          } // otherwise it is an assignment
+          else {
+            new_token.beginning = string + token_beginning;
+            new_token.length = 1;
+            new_token.type = Operation;
+
+            token_array = append_token(token_array, token_count, new_token);
+            token_count++;
+
+            token_beginning = i;
+            mode = searching_token;
+          }
+        }
+
         // deal here with sigle symbol tokens
         else if (symbol == ':') {
           new_token.beginning = string + token_beginning;
           new_token.length = 1;
           new_token.type = Colon;
 
-          // add token to token_array
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
 
@@ -97,7 +136,6 @@ Token * lexer(char * string) {
           new_token.length = 1;
           new_token.type = Semi_colon;
 
-          // add token to token_array
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
 
@@ -110,7 +148,6 @@ Token * lexer(char * string) {
           new_token.length = 1;
           new_token.type = Curly_bracket;
 
-          // add token to token_array
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
 
@@ -122,7 +159,6 @@ Token * lexer(char * string) {
           new_token.length = 1;
           new_token.type = Bracket;
 
-          // add token to token_array
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
 
@@ -145,7 +181,6 @@ Token * lexer(char * string) {
           new_token.length = (unsigned short) (i - token_beginning);
           new_token.type = Identifier;
 
-          // add token to token_array
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
 
@@ -163,10 +198,8 @@ Token * lexer(char * string) {
           new_token.length = (unsigned short) (i - token_beginning);
           new_token.type = Number;
 
-          // add token to token_array
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
-
           
           token_beginning = i;
           mode = searching_token;
@@ -176,20 +209,16 @@ Token * lexer(char * string) {
         break;
       
       case operation:
+        // the operation tokens (that have not been handled already) are 1 character large
+        new_token.beginning = string + token_beginning;
+        new_token.length = 1;
         new_token.type = Operation;
-        if (!is_in_str(symbol, oper_sym)) {
-          new_token.beginning = string + token_beginning;
-          new_token.length = (unsigned short) (i - token_beginning);
-          new_token.type = Operation;
 
-          // add token to token_array
-          token_array = append_token(token_array, token_count, new_token);
-          token_count++;
+        token_array = append_token(token_array, token_count, new_token);
+        token_count++;
 
-          token_beginning = i;
-          mode = searching_token;
-          i--;
-        }
+        token_beginning = i;
+        mode = searching_token;
 
         break;
 
@@ -234,16 +263,5 @@ bool compare_str_of_tokens(const Token token1, const Token token2) {
   }
   return true;
 }
-
-#ifdef DEBUG
-void print_token_stream(const Token * tokens, const int size) {
-  for (int i = 0; i < size; i++) {
-    Token token = tokens[i];
-    printf("%.*s\n", token.length, token.beginning);
-  }
-  putchar('\n');
-}
-#endif
-
 
 #endif
