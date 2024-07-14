@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -O3 -s -std=c23 -Wall -Wextra -pedantic
+CFLAGS := -O3 -flto -s -std=c23 -Wall -Wextra -pedantic
 CFLAGS_DEBUG := -g -std=c23 -Wall -Wextra -pedantic
 
 all: compile

@@ -288,15 +288,20 @@ void D_print_statement(Node_Statement stmt, int depth) {
       D_print_expresion(if_node.condition, depth+1);
 
       printf("%*sNode if scope:\n", depth, "");
-      depth++;
-      printf("%*sStatements count: %d\n", depth, "", if_node.scope.statements_count);
 
+      printf("%*sStatements count: %d\n", depth+1, "", if_node.scope.statements_count);
       for (int i = 0; i < if_node.scope.statements_count; i++) {
-        D_print_statement(if_node.scope.statements_node[i], depth);
+        D_print_statement(if_node.scope.statements_node[i], depth+1);
         putchar('\n');
       }
       if (if_node.has_else_block) {
-        implementation_error("monkey poop");
+        printf("%*sNode else scope:\n", depth, "");
+
+        printf("%*sStatements count: %d\n", depth+1, "", if_node.else_block.statements_count);
+        for (int i = 0; i < if_node.else_block.statements_count; i++) {
+          D_print_statement(if_node.else_block.statements_node[i], depth+1);
+          putchar('\n');
+        }
       }
       break;
 
@@ -336,7 +341,7 @@ Node_Program parser(const Token * tokens);
 Node_Scope parse_scope(const Token * tokens, const int tokens_count);
 
 // convert the string of a binary operation token into a enum that is a more manageable form
-int get_binary_operation_type(Token operation) {
+static int get_binary_operation_type(Token operation) {
   int type;
   if (compare_token_to_string(operation, "+")) {
     type = binary_operation_sum_type;
@@ -366,13 +371,13 @@ int get_binary_operation_type(Token operation) {
     type = binary_operation_equ_type;
   }
   else {
-    error("unkown binary operation in expresion");
+    errorf("Line:%d, column:%d.  Error: unkown binary operation in expresion\n", operation.line_number, operation.column_number);
   }
   return type;
 }
 
 // convert the string of a unary operation token into a enum that is a more manageable form
-int get_unary_operation_type(Token operation) {
+static int get_unary_operation_type(Token operation) {
   int type;
   if (compare_token_to_string(operation, "&")) {
     type = unary_operation_addr_type;
@@ -381,14 +386,14 @@ int get_unary_operation_type(Token operation) {
     type = unary_operation_deref_type;
   }
   else {
-    error("unkown unary operation in expresion");
+    errorf("Line:%d, column:%d.  Error: unkown unary operation in expresion\n", operation.line_number, operation.column_number);
   }
   return type;
 }
 
 // get the precedence of a binary operator acording to the documentation
 // the closest the value to 0 the less the precedence is
-int get_binary_operation_precedence(Token operation) {
+static int get_binary_operation_precedence(Token operation) {
   const char * opers[] = {">", "==", "<", "+", "-", "%", "*", "/", "^"};
   const int precedes[] = { 0 ,  0 ,   0 ,  1 ,  1 ,  2 ,  2 ,  2 ,  3 };
   // find the idx of the matching string and return the corresponding precedence
@@ -397,14 +402,14 @@ int get_binary_operation_precedence(Token operation) {
       return precedes[i];
     }
   }
-  error("unkown precedence of binary operation");
+  errorf("Line:%d, column:%d.  Error: unkown precedence of binary operation\n", operation.line_number, operation.column_number);
   // unreachable
   return -1;
 }
 
 // get the precedence of an unary operator acording to the documentation
 // the closest the value to 0 the less the precedence is
-int get_unary_operation_precedence(Token operation) {
+static int get_unary_operation_precedence(Token operation) {
   const char * opers[] = {"&", "*"};
   const int precedes[] = { 4 ,  4 };
   // find the idx of the matching string and return the corresponding precedence
@@ -413,7 +418,7 @@ int get_unary_operation_precedence(Token operation) {
       return precedes[i];
     }
   }
-  error("unkown precedence of unary operation");
+  errorf("Line:%d, column:%d.  Error: unkown precedence of unary operation\n", operation.line_number, operation.column_number);
   // unreachable
   return -1;
 }
@@ -422,7 +427,7 @@ int get_unary_operation_precedence(Token operation) {
 // 'expr' must be the address of the first opening bracket in the expression
 // returns the offset off the matching closing bracket,
 //   if it couldnt find it prints an error an exits
-int offset_of_match_bracket(const Token * expr, const int exprsz) {
+static int offset_of_match_bracket(const Token * expr, const int exprsz) {
   if (expr->type != Bracket || *expr->beginning != '(') {
     implementation_error("beginning of bracket expr is not open bracket");
   }
@@ -432,9 +437,9 @@ int offset_of_match_bracket(const Token * expr, const int exprsz) {
   while (depth != 0) {
     if (offset >= exprsz) {
       if (offset > 0) {
-        error("expected a closing bracket");
+        errorf("Line:%d, column:%d.  Error: expected a closing bracket\n", expr->line_number, expr->column_number);
       } else if (offset < 0) {
-        error("expected a opening bracket");
+        errorf("Line:%d, column:%d.  Error: expected an opening bracket\n", expr->line_number, expr->column_number);
       }
     }
     if (expr[offset].type == Bracket) {
@@ -458,7 +463,7 @@ int offset_of_match_bracket(const Token * expr, const int exprsz) {
 Node_Expresion parse_expresion(const Token * expresion_beginning, const int size) {
   Node_Expresion result;
   if (size == 0) {
-    error("expression must not be empty");
+    errorf("Line:%d, column:%d.  Error: expression must not be empty\n", expresion_beginning->line_number, expresion_beginning->column_number);
   }
   else if (size == 1) {
     // set the type of the expresion
@@ -471,7 +476,7 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
       result.expresion_value.expresion_identifier_value = *expresion_beginning;
     }
     else {
-      error("unexpected type in expresion");
+      errorf("Line:%d, column:%d.  Error: unexpected type of token in expresion\n", expresion_beginning->line_number, expresion_beginning->column_number);
     }
   }
   else {
@@ -524,10 +529,6 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
         was_last_op_or_null = false;
       }
     }
-    // if it did not found an operation report it
-    if (min_oper_preced == BIG_NUM) {
-      error("expected an operation in expresion");
-    }
     if (is_operation_bin) {
       right_side_size = i - right_side_beginning;
       // create a new node and parse each side of the expresion
@@ -551,8 +552,9 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
       result.expresion_value.expresion_unary_operation_value = uni_operation;
       result.expresion_type = expresion_unary_operation_type;
     }
+    // if it did not found an operation report it
     else {
-      error("expected an operation in expresion while parsing it");
+      errorf("Line:%d, column:%d.  Error: expected an operation in expresion\n", expresion_beginning->line_number, expresion_beginning->column_number);
     }
   }
   return result;
@@ -561,15 +563,15 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
 
 // returns the offset of the next the semicolon token counting from the beginning pointer
 // in case there is no semicolon or something happend, reports an error and exits
-int next_semicolon_offset(const Token * beginning) {
+static int next_semicolon_offset(const Token * beginning) {
   int offset;
   for (offset = 0; beginning[offset].type != Semi_colon; offset++) {
     Token token = beginning[offset];
     if (token.type == End_of_file) {
-      error("could not find the expected semicolon");
+      errorf("Line:%d, column:%d.  Error: could not find the expected semicolon\n", token.line_number, token.column_number);
     }
     if (token.type == Curly_bracket) {
-      error("expected a semicolon");
+      errorf("Line:%d, column:%d.  Error: expected an operation in expresion\n", token.line_number, token.column_number);
     }
   }
   return offset;
@@ -577,18 +579,18 @@ int next_semicolon_offset(const Token * beginning) {
 
 // returns the offset of the next the '=' token counting from the beginning pointer
 // if it could not find it, reports an error and exits
-int next_asign_offset(const Token * beginning) {
+static int next_asign_offset(const Token * beginning) {
   int offset;
   for (offset = 0; compare_token_to_string(beginning[offset], "=") == 0; offset++) {
     Token token = beginning[offset];
     if (token.type == End_of_file) {
-      error("could not find the expected '='");
+      errorf("Line:%d, column:%d.  Error: could not find the expected '='\n", token.line_number, token.column_number);
     }
     if (token.type == Semi_colon) {
-      error("expected a '='");
+      errorf("Line:%d, column:%d.  Error: expected a '=' and an expression\n", token.line_number, token.column_number);
     }
     if (token.type == Curly_bracket) {
-      error("expected a '='");
+      errorf("Line:%d, column:%d.  Error: expected a '=', an expression and a ':'\n", token.line_number, token.column_number);
     }
   }
   return offset;
@@ -597,11 +599,11 @@ int next_asign_offset(const Token * beginning) {
 // parses a type definition
 Node_Type parse_type(const Token * type_beginning, const int type_sz) {
   if (type_sz == 0) {
-    error("expected a type in varable declaration");
+    errorf("Line:%d, column:%d.  Error: expected a type\n", type_beginning->line_number, type_beginning->column_number);
   }
   if (type_sz == 1) {
     if (!compare_token_to_string(type_beginning[0], "u64")) {
-      error("expected a type");
+      errorf("Line:%d, column:%d.  Error: expected the type to be 'u64'\n", type_beginning->line_number, type_beginning->column_number);
     } 
     Node_Type type = {
       .token=type_beginning[0],
@@ -620,7 +622,7 @@ Node_Type parse_type(const Token * type_beginning, const int type_sz) {
     i += 1;
   }
   else {
-    error("expected a type decorator");
+    errorf("Line:%d, column:%d.  Error: expected a type decorator\n", type_beginning->line_number, type_beginning->column_number);
   }
   return type;
 }
@@ -651,7 +653,7 @@ Node_Scope parse_scope_at(const Token * tokens, int * idx) {
   // match the beginning of the scope with its ending accounting for recursive scopes
   while (scope_count != 0) {
     if (tokens[i].type == End_of_file) {
-      error("unmatched open curly bracket");
+      errorf("Line:%d, column:%d.  Error: unmatched open curly bracket\n", tokens->line_number, tokens->column_number);
     }
     i++;
     if (tokens[i].type == Curly_bracket) {
@@ -696,7 +698,7 @@ Node_Print parse_print_at(const Token * tokens, int * idx) {
 // index will be updated to the corresponding ';'
 Node_Var_declaration parse_var_declaration_at(const Token * tokens, int * idx) {
   if (tokens[*idx].type != Identifier) {
-    error("expected an identifier in variable declaration");
+    errorf("Line:%d, column:%d.  Error: expected an identifier in variable declaration\n", tokens->line_number, tokens->column_number);
   }
   Token var_name = tokens[*idx];
 
@@ -725,7 +727,7 @@ Node_Var_declaration parse_var_declaration_at(const Token * tokens, int * idx) {
 // index will be updated to the corresponding ';'
 Node_Var_assignment parse_var_assignment_at(const Token * tokens, int * idx) {
   if (tokens[*idx].type != Identifier) {
-    error("expected an identifier in variable assigment");
+    errorf("Line:%d, column:%d.  Error: expected an identifier in variable assigment\n", tokens->line_number, tokens->column_number);
   }
   Token var_name = tokens[*idx];
   // add 2 to skip the var name and the "="
@@ -852,7 +854,7 @@ Node_Program parser(const Token * tokens) {
       result_tree.statements_node = new_tree;
     }
     else {
-      error("unkown statement type");
+      errorf("Line:%d, column:%d.  Error: unkown statement type\n", tokens[i].line_number, tokens[i].column_number);
     }
   }
   result_tree.statements_count = statements_num;

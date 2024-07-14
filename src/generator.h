@@ -6,18 +6,12 @@
 #include "tokenizer.h"
 #include "parser.h"
 
-FILE * create_file(const char * file_name) {
-  FILE * fptr = fopen(file_name,"w");
-  if (fptr == NULL)
-    file_error("could not create the file for the output");
-  return fptr; 
-}
 
-void add_token_to_file(FILE * file_ptr, const Token token) {
+static void add_token_to_file(FILE * file_ptr, const Token token) {
   fprintf(file_ptr, "%.*s", token.length, token.beginning);
 }
 
-void add_string_to_file(FILE * file_ptr, const char * string) {
+static void add_string_to_file(FILE * file_ptr, const char * string) {
   fputs(string, file_ptr);
 }
 
@@ -236,7 +230,7 @@ typedef struct Scopes_List {
 } Scopes_List;
 
 // find the place in where the variable is located in the stack
-int find_var_stack_place(const Scopes_List vars_list, const Token var) {
+static int find_var_stack_place(const Scopes_List vars_list, const Token var) {
   for (int i = 0; i < vars_list.scopes_count; i++) {
     for (int j = 0; j < vars_list.variables[i].var_stack_size; j++) {
       if (compare_str_of_tokens(var, vars_list.variables[i].var_stack_tokens_list[j])) {
@@ -423,7 +417,7 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
   }
 }
 
-Scopes_List NASM_copy_scopes_list(const Scopes_List scopes) {
+static Scopes_List NASM_copy_scopes_list(const Scopes_List scopes) {
   Scopes_List result;
   result.scopes_count = scopes.scopes_count;
   result.variables = smalloc(scopes.scopes_count * sizeof(*scopes.variables));
@@ -439,7 +433,7 @@ Scopes_List NASM_copy_scopes_list(const Scopes_List scopes) {
 }
 
 // add a variable to the last scope of list of variables, and its place on the stack
-void NASM_append_var_to_var_list(Scopes_List * scopes, const Token variable, const int stack_place) {
+static void NASM_append_var_to_var_list(Scopes_List * scopes, const Token variable, const int stack_place) {
   Variables_List * last_scope = &scopes->variables[scopes->scopes_count -1];
   last_scope->var_stack_size++;
   last_scope->var_stack_places_list = srealloc(last_scope->var_stack_places_list, last_scope->var_stack_size * sizeof(*last_scope->var_stack_places_list));
@@ -449,7 +443,7 @@ void NASM_append_var_to_var_list(Scopes_List * scopes, const Token variable, con
 }
 
 // create a new scope and append it to the end of the list of scopes
-void NASM_create_scope(Scopes_List * scopes) {
+static void NASM_create_scope(Scopes_List * scopes) {
   scopes->scopes_count++;
   scopes->variables = srealloc(scopes->variables, scopes->scopes_count * sizeof(*scopes->variables));
   scopes->variables[scopes->scopes_count -1].var_stack_size = 0;
@@ -457,7 +451,7 @@ void NASM_create_scope(Scopes_List * scopes) {
   scopes->variables[scopes->scopes_count -1].var_stack_places_list = malloc(scopes->variables[scopes->scopes_count -1].var_stack_size * sizeof(int));
 }
 
-void free_scopes_list(Scopes_List scopes) {
+static void free_scopes_list(Scopes_List scopes) {
   for (int i = 0; i < scopes.scopes_count; i++) {
     free(scopes.variables[i].var_stack_places_list);
     free(scopes.variables[i].var_stack_tokens_list);
@@ -465,7 +459,8 @@ void free_scopes_list(Scopes_List scopes) {
   free(scopes.variables);
 }
 
-int uuid = 0; // keep track of an unique id for the labels so there arent collisions with other labels
+// keep track of an unique identification for the labels so there arent collisions with other labels
+static int uuid = 0;
 void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node_Statement stmt, int * stack_size) {
   switch (stmt.statement_type) {
     case var_declaration_type:

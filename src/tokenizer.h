@@ -20,6 +20,9 @@ typedef struct Token {
     Bracket,
     End_of_file
   } type;
+  // extra info for better error messages
+  int line_number;
+  short column_number;
 } Token;
 
 
@@ -43,7 +46,7 @@ bool is_in_str(char symbol, const char * string) {
 }
 
 // appends a token to the end of the array of tokens
-Token * append_token(Token * tokens, int tokens_count, const Token token) {
+static Token * append_token(Token * tokens, int tokens_count, const Token token) {
   tokens_count += 1;
   tokens = srealloc(tokens, sizeof(Token) * (tokens_count + 1));
   tokens[tokens_count -1] = token;
@@ -69,8 +72,13 @@ Token * lexer(char * string) {
   int token_count = 0;
   Token * token_array = malloc(token_count * sizeof(Token));
   Token new_token = NULL_TOKEN;
+
+  int line_number = 1;
+  int column_number = 1;
+
   int i;
   for (i = 0; string[i] != '\0'; i++) {
+    column_number++;
     const char symbol = string[i];
     switch (mode) {
       case searching_token:
@@ -78,16 +86,19 @@ Token * lexer(char * string) {
         if (is_in_str(symbol, var_sym)) {
           mode = identifier;
           i--;
+          column_number--;
         }
 
         else if (is_in_str(symbol, numb_sym)) {
           mode = number;
           i--;
+          column_number--;
         }
 
         else if (is_in_str(symbol, oper_sym)) {
           mode = operation;
           i--;
+          column_number--;
         }
 
         else if (symbol == '=') {
@@ -96,6 +107,8 @@ Token * lexer(char * string) {
             new_token.beginning = string + token_beginning;
             new_token.length = 2;
             new_token.type = Operation;
+            new_token.line_number = line_number;
+            new_token.column_number = column_number;
 
             token_array = append_token(token_array, token_count, new_token);
             token_count++;
@@ -109,6 +122,8 @@ Token * lexer(char * string) {
             new_token.beginning = string + token_beginning;
             new_token.length = 1;
             new_token.type = Operation;
+            new_token.line_number = line_number;
+            new_token.column_number = column_number;
 
             token_array = append_token(token_array, token_count, new_token);
             token_count++;
@@ -123,6 +138,8 @@ Token * lexer(char * string) {
           new_token.beginning = string + token_beginning;
           new_token.length = 1;
           new_token.type = Colon;
+          new_token.line_number = line_number;
+          new_token.column_number = column_number;
 
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
@@ -135,6 +152,8 @@ Token * lexer(char * string) {
           new_token.beginning = string + token_beginning;
           new_token.length = 1;
           new_token.type = Semi_colon;
+          new_token.line_number = line_number;
+          new_token.column_number = column_number;
 
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
@@ -147,6 +166,8 @@ Token * lexer(char * string) {
           new_token.beginning = string + token_beginning;
           new_token.length = 1;
           new_token.type = Curly_bracket;
+          new_token.line_number = line_number;
+          new_token.column_number = column_number;
 
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
@@ -158,6 +179,8 @@ Token * lexer(char * string) {
           new_token.beginning = string + token_beginning;
           new_token.length = 1;
           new_token.type = Bracket;
+          new_token.line_number = line_number;
+          new_token.column_number = column_number;
 
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
@@ -165,11 +188,13 @@ Token * lexer(char * string) {
           token_beginning = i;
           mode = searching_token;
         }
+        else if (symbol == '\n') {
+          line_number += 1;
+          column_number = 1;
+        }
         // throw error if the symbol is not allowed
         else if (!is_in_str(symbol, separ_sym)) {
-          if (symbol != -1) {
-            implementation_error("unkown type of symbol");
-          }
+          errorf("Line:%d, column:%d.  Error: unkown type of symbol (%c)\n", line_number, column_number, symbol);
         }
         
         break;
@@ -180,6 +205,8 @@ Token * lexer(char * string) {
           new_token.beginning = string + token_beginning;
           new_token.length = (unsigned short) (i - token_beginning);
           new_token.type = Identifier;
+          new_token.line_number = line_number;
+          new_token.column_number = column_number;
 
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
@@ -187,6 +214,7 @@ Token * lexer(char * string) {
           token_beginning = i;
           mode = searching_token;
           i--;
+          column_number--;
         }
 
         break;
@@ -197,6 +225,8 @@ Token * lexer(char * string) {
           new_token.beginning = string + token_beginning;
           new_token.length = (unsigned short) (i - token_beginning);
           new_token.type = Number;
+          new_token.line_number = line_number;
+          new_token.column_number = column_number;
 
           token_array = append_token(token_array, token_count, new_token);
           token_count++;
@@ -204,6 +234,7 @@ Token * lexer(char * string) {
           token_beginning = i;
           mode = searching_token;
           i--;
+          column_number--;
         }
 
         break;
@@ -213,6 +244,8 @@ Token * lexer(char * string) {
         new_token.beginning = string + token_beginning;
         new_token.length = 1;
         new_token.type = Operation;
+        new_token.line_number = line_number;
+        new_token.column_number = column_number;
 
         token_array = append_token(token_array, token_count, new_token);
         token_count++;

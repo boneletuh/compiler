@@ -5,13 +5,22 @@
 #include <stdio.h>
 #include <string.h>
 
+
+// predefine symbols
+void * smalloc(size_t);
+void * srealloc(void *, size_t);
+char * file_contents(const char *);
+const char * get_file_extension(const char *);
+
+
 #include "errors.h"
+
 
 // its like malloc() but it checks that it could allocate memory
 void * smalloc(size_t nbytes) {
   void * ptr = malloc(nbytes);
   if (ptr == NULL) {
-    allocation_error("can not allocate memory");
+    errorf("Execution Error: can not allocate memory\n");
   }
   return ptr;
 }
@@ -20,12 +29,12 @@ void * smalloc(size_t nbytes) {
 void * srealloc(void * ptr, size_t nbytes) {
   void * new_ptr = realloc(ptr, nbytes);
   if (new_ptr == NULL) {
-    allocation_error("can not reallocate memory");
+    errorf("Execution Error: can not reallocate memory\n");
   }
   return new_ptr;
 }
 
-int file_size(FILE * file) {
+static int file_size(FILE * file) {
   fseek(file, 0, SEEK_END);
   int size = ftell(file);
   fseek(file, 0, SEEK_SET);
@@ -33,19 +42,29 @@ int file_size(FILE * file) {
 }
 
 // returns the bytes of a file and closes it
-char * file_contents(FILE * fptr) {
-  if (fptr == NULL)
-    file_error("can not open the input code file");
-
-  int size = file_size(fptr);
+char * file_contents(const char * file_path) {
+  // open the source code file
+  FILE * fptr = fopen(file_path, "r");
+  if (fptr == NULL) {
+    errorf("File Error: Can not open the input code file: %s\n", file_path);
+  }
+  const int size = file_size(fptr);
   char * out = smalloc(size + 1);
-  for (int i = 0; i < size; i++)
+  for (int i = 0; i < size; i++) {
     out[i] = getc(fptr);
-
+  }
   out[size] = '\0';
   
   fclose(fptr); 
   return out;
+}
+
+FILE * create_file(const char * file_name) {
+  FILE * fptr = fopen(file_name, "w");
+  if (fptr == NULL) {
+    errorf("File Error: Can not create the file: %s\n", file_name);
+  }
+  return fptr; 
 }
 
 // returns a ptr to the beginning of the extension in the string

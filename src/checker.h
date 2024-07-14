@@ -49,7 +49,7 @@ bool compare_2_types(const Node_Type type1, const Node_Type type2) {
 
 // returns the symbol associated with the token
 // if it could not find it, it throws an error
-Symbol get_symbol_from_token(const Vars_list vars, const Token token) {
+static Symbol get_symbol_from_token(const Vars_list vars, const Token token) {
   for (int i = 0; i < vars.scopes_count; i++) {
     Scope scope = vars.scopes[i];
     for (int j = 0; j < scope.vars_count; j++) {
@@ -119,7 +119,7 @@ Node_Type get_type_of_expresion(const Vars_list vars, const Node_Expresion expre
 }
 
 // checkes if the token is in the list of variables
-bool is_var_in_var_list(const Vars_list vars, const Token variable) {
+static bool is_var_in_var_list(const Vars_list vars, const Token variable) {
   for (int i = 0; i < vars.scopes_count; i++) {
     Scope scope = vars.scopes[i];
     for (int j = 0; j < scope.vars_count; j++) {
@@ -135,8 +135,9 @@ bool is_var_in_var_list(const Vars_list vars, const Token variable) {
 // checks if there is some undeclared var in the expresion, if so it throws an error
 bool is_expresion_valid(const Vars_list scopes, const Node_Expresion expresion) {
   if (expresion.expresion_type == expresion_identifier_type) {
-    if (!is_var_in_var_list(scopes, expresion.expresion_value.expresion_identifier_value)) {
-      error("undeclared variable used");
+    Token variable = expresion.expresion_value.expresion_identifier_value;
+    if (!is_var_in_var_list(scopes, variable)) {
+      errorf("Line:%d, column:%d.  Error: undeclared variable used\n", variable.line_number, variable.column_number);
     }
   }
   else if (expresion.expresion_type == expresion_binary_operation_type) {
@@ -166,7 +167,7 @@ bool is_expresion_valid(const Vars_list scopes, const Node_Expresion expresion) 
 }
 
 // append a variable to the array of variables in the last scope
-void append_var_to_var_list(const Symbol variable, Vars_list * scopes) {
+static void append_var_to_var_list(const Symbol variable, Vars_list * scopes) {
   Scope * last_scope = &scopes->scopes[scopes->scopes_count -1];
   last_scope->vars_count++;
   last_scope->vars = srealloc(last_scope->vars, last_scope->vars_count * sizeof(*last_scope->vars));
@@ -174,7 +175,7 @@ void append_var_to_var_list(const Symbol variable, Vars_list * scopes) {
 }
 
 // create a new empty scope and append it to the end of array of scopes
-void create_scope(Vars_list * scopes) {
+static void create_scope(Vars_list * scopes) {
   scopes->scopes_count++;
   scopes->scopes = srealloc(scopes->scopes, scopes->scopes_count * sizeof(*scopes->scopes));
   scopes->scopes[scopes->scopes_count -1].vars_count = 0;
@@ -182,7 +183,7 @@ void create_scope(Vars_list * scopes) {
 }
 
 // create a copy of the scopes and its variables
-Vars_list copy_vars_list(Vars_list scopes) {
+static Vars_list copy_vars_list(Vars_list scopes) {
   Vars_list result;
   result.scopes_count = scopes.scopes_count;
   result.scopes = smalloc(scopes.scopes_count * sizeof(*scopes.scopes));
@@ -198,7 +199,7 @@ Vars_list copy_vars_list(Vars_list scopes) {
 }
 
 // free the memory of the scopes
-void free_vars_list(Vars_list variables) {
+static void free_vars_list(Vars_list variables) {
   for (int i = 0; i < variables.scopes_count; i++ ) {
     free(variables.scopes[i].vars);
   }
@@ -219,7 +220,8 @@ void check_statement(Vars_list * variables, const Node_Statement stmt) {
         .type=stmt.statement_value.var_declaration.type
       };
       if (is_var_in_var_list(*variables, variable.value)) {
-        error("variable already declared");
+        const Token previous_var = get_symbol_from_token(*variables, variable.value).value;
+        errorf("Line:%d, column:%d.  Error: variable already declared in line:%d, column:%d.\n", previous_var.line_number, previous_var.column_number, previous_var.line_number, previous_var.column_number);
       }
       else {
         append_var_to_var_list(variable, variables);
@@ -227,7 +229,7 @@ void check_statement(Vars_list * variables, const Node_Statement stmt) {
 
       // check that the types of the declaration are valid with the ones of the expresion
       if (!compare_2_types(variable.type, get_type_of_expresion(*variables, expresion))) {
-        error("invalid type in variable declaration");
+        error("type in variable declaration");
       }
       break;
     }
@@ -245,7 +247,7 @@ void check_statement(Vars_list * variables, const Node_Statement stmt) {
       // check that when assigning to a var there is another var with the same name
       Token variable = stmt.statement_value.var_assignment.var_name;
       if (!is_var_in_var_list(*variables, variable)) {
-        error("variable has not been declared before");
+        errorf("Line:%d, column:%d.  Error: variable has not been declared before.\n", variable.line_number, variable.column_number);
       }
       // check that the expresion is valid
       Node_Expresion expresion = stmt.statement_value.var_assignment.value;

@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "mlib.h"
-#include "errors.h"
+//#include "errors.h"
 #include "tokenizer.h"
 #include "parser.h"
 #include "checker.h"
@@ -93,9 +93,7 @@ void free_all_memory(char * code, Token * tokens, Node_Program syntax_tree) {
 }
 
 void compile(const char * source_code_file, const char * result_file) {
-  // open the source code file
-  FILE * file = fopen(source_code_file, "r");
-  char * code = file_contents(file);
+  char * code = file_contents(source_code_file);
 
   Token * tokens = lexer(code);
 
