@@ -8,37 +8,46 @@
 // some near positive infinity number
 #define BIG_NUM 999999
 
+typedef struct Node_Array_type {
+  struct Node_Type * primitive_type;
+  Token elements_count;
+} Node_Array_type;
 
 typedef struct Node_Type {
   Token token;
   enum {
-    type_ptr_type,
     type_primitive_type,
+    type_ptr_type,
+    type_array_type
   } type_type;
   union {
-    struct Node_Type * type_ptr_value;
     Token type_primitive_value;
+    struct Node_Type * type_ptr_value;
+    struct Node_Array_type * type_array_value;
   } type_value;
 
 } Node_Type;
 
-typedef struct Node_Number {
-  Token number_token;
-} Node_Number;
+typedef struct Node_Array {
+  int elements_count;
+  // list of all the elements inside the array
+  struct Node_Expresion * elements;
+} Node_Array;
 
 typedef struct Node_Expresion {
   enum {
     expresion_number_type,
     expresion_identifier_type,
     expresion_binary_operation_type,
-    expresion_unary_operation_type
+    expresion_unary_operation_type,
+    expresion_array_type
   } expresion_type;
   union {
-    Node_Number expresion_number_value;
+    Token expresion_number_value;
     Token expresion_identifier_value;
-    // binary and unary operations are a pointer so they can be recursive
     struct Node_Binary_Operation * expresion_binary_operation_value;
     struct Node_Unary_Operation * expresion_unary_operation_value;
+    struct Node_Array * expresion_array_value;
   } expresion_value;
 } Node_Expresion;
 
@@ -162,7 +171,7 @@ void D_print_expresion(Node_Expresion expresion, int depth) {
       depth++;
 
       printf("%*s", depth, "");
-      D_print_tokens(&expresion.expresion_value.expresion_number_value.number_token, 1);
+      D_print_tokens(&expresion.expresion_value.expresion_number_value, 1);
       break;
 
     case expresion_identifier_type:
@@ -193,6 +202,19 @@ void D_print_expresion(Node_Expresion expresion, int depth) {
 
       D_print_expresion(expresion.expresion_value.expresion_unary_operation_value->expresion, depth);
       break;
+
+    case expresion_array_type:
+      printf("%*sNode array:\n", depth, "");
+      depth++;
+
+      printf("%*selements count: %d\n", depth, "", expresion.expresion_value.expresion_array_value->elements_count);
+
+      for (int i = 0; i < expresion.expresion_value.expresion_array_value->elements_count; i++) {
+        printf("%*selement idx: %d\n", depth, "", i);
+        D_print_expresion(expresion.expresion_value.expresion_array_value->elements[i], depth+1);
+      }
+      break;
+
   }
 }
 
@@ -212,6 +234,17 @@ void D_print_type(Node_Type type, int depth) {
     depth++;
 
     D_print_type(*type.type_value.type_ptr_value, depth);
+  }
+  else if (type.type_type == type_array_type) {
+    printf("%*sNode type array:\n", depth, "");
+    depth++;
+
+    printf("%*selements count: ", depth, "");
+    D_print_tokens(&type.type_value.type_array_value->elements_count, 1);
+
+    printf("%*selement type:\n", depth, "");
+    depth++;
+    D_print_type(*type.type_value.type_array_value->primitive_type, depth);
   }
   else {
     implementation_error("in debug function print type unkown type of type");
@@ -341,7 +374,7 @@ Node_Program parser(const Token * tokens);
 Node_Scope parse_scope(const Token * tokens, const int tokens_count);
 
 // convert the string of a binary operation token into a enum that is a more manageable form
-static int get_binary_operation_type(Token operation) {
+static int get_binary_operation_type(const Token operation) {
   int type;
   if (compare_token_to_string(operation, "+")) {
     type = binary_operation_sum_type;
@@ -458,6 +491,40 @@ static int offset_of_match_bracket(const Token * expr, const int exprsz) {
   return offset -1;
 }
 
+// 'expr' must be the address of the first opening square bracket in the expression
+// returns the offset off the matching closing square bracket,
+//   if it couldnt find it prints an error an exits
+static int offset_of_match_square_bracket(const Token * expr, const int exprsz) {
+  if (expr->type != Square_bracket || *expr->beginning != '[') {
+    implementation_error("beginning of bracket expr is not open bracket");
+  }
+
+  int depth = 1;
+  int offset = 1;
+  while (depth != 0) {
+    if (offset >= exprsz) {
+      if (offset > 0) {
+        errorf("Line:%d, column:%d.  Error: expected a closing square bracket\n", expr->line_number, expr->column_number);
+      } else if (offset < 0) {
+        errorf("Line:%d, column:%d.  Error: expected an opening square bracket\n", expr->line_number, expr->column_number);
+      }
+    }
+    if (expr[offset].type == Square_bracket) {
+      if (expr[offset].beginning[0] == '[') {
+        depth++;
+      }
+      else if (expr[offset].beginning[0] == ']') {
+        depth--;
+      }
+      else {
+        implementation_error("symbol is of type Square_bracket but is not [ or ]");
+      }
+    }
+    offset++;
+  }
+  return offset -1;
+}
+
 
 // parses expresion recursively
 Node_Expresion parse_expresion(const Token * expresion_beginning, const int size) {
@@ -469,7 +536,7 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
     // set the type of the expresion
     if (expresion_beginning->type == Number) {
       result.expresion_type = expresion_number_type;
-      result.expresion_value.expresion_number_value.number_token = *expresion_beginning;
+      result.expresion_value.expresion_number_value = *expresion_beginning;
     }
     else if (expresion_beginning->type == Identifier) {
       result.expresion_type = expresion_identifier_type;
@@ -482,7 +549,37 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
   else {
     if (expresion_beginning[0].type == Bracket && expresion_beginning[0].beginning[0] == '(' &&
         offset_of_match_bracket(expresion_beginning, size) == size -1) {
-      result = parse_expresion(&expresion_beginning[1], size -2);
+      result = parse_expresion(&expresion_beginning[1], size -2); // substract to skip the '(' and the ending ')'
+      return result;
+    }
+    if (expresion_beginning[0].type == Square_bracket && expresion_beginning[0].beginning[0] == '[' &&
+        offset_of_match_square_bracket(expresion_beginning, size) == size -1) {
+      result.expresion_type = expresion_array_type;
+      result.expresion_value.expresion_array_value = smalloc(sizeof(*result.expresion_value.expresion_array_value));
+      int elements_count = 0;
+      result.expresion_value.expresion_array_value->elements = smalloc(sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
+      int expr_beginning_idx = 1;
+      for (int i = 1; i < size -1; i++) { // start after the '[' and end before the ending ']';
+        // if it finds a square bracket skip it
+        if (expresion_beginning[i].type == Square_bracket && expresion_beginning[i].beginning[0] == '[') {
+          i += offset_of_match_square_bracket(&expresion_beginning[i], size -2);
+        }
+        // if it finds a comma parse the accummulated expresion and start accumulating another one
+        if (expresion_beginning[i].type == Comma) {
+          elements_count += 1;
+          result.expresion_value.expresion_array_value->elements = srealloc(result.expresion_value.expresion_array_value->elements, sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
+          result.expresion_value.expresion_array_value->elements[elements_count -1] = parse_expresion(&expresion_beginning[expr_beginning_idx], i - expr_beginning_idx);
+          i++;
+          expr_beginning_idx = i;
+        }
+      }
+      // if there is are tokens left after the last expresion, also parse them and add them to the list
+      if (expr_beginning_idx != size-1) {
+        elements_count += 1;
+        result.expresion_value.expresion_array_value->elements = srealloc(result.expresion_value.expresion_array_value->elements, sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
+        result.expresion_value.expresion_array_value->elements[elements_count -1] = parse_expresion(&expresion_beginning[expr_beginning_idx], (size-1) - expr_beginning_idx);
+      }
+      result.expresion_value.expresion_array_value->elements_count = elements_count;
       return result;
     }
     Token operation;
@@ -505,6 +602,10 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
       // if it finds a bracket skip it
       if (expresion_beginning[i].type == Bracket && expresion_beginning[i].beginning[0] == '(') {
         i += offset_of_match_bracket(&expresion_beginning[i], size);
+      }
+      // if it finds a square bracket skip it
+      if (expresion_beginning[i].type == Square_bracket && expresion_beginning[i].beginning[0] == '[') {
+        i += offset_of_match_square_bracket(&expresion_beginning[i], size);
       }
       // find the operation with the lowest precedence
       if (expresion_beginning[i].type == Operation) {
@@ -594,6 +695,7 @@ static int next_asign_offset(const Token * beginning) {
     }
   }
   return offset;
+
 }
 
 // parses a type definition
@@ -603,8 +705,8 @@ Node_Type parse_type(const Token * type_beginning, const int type_sz) {
   }
   if (type_sz == 1) {
     if (!compare_token_to_string(type_beginning[0], "u64")) {
-      errorf("Line:%d, column:%d.  Error: expected the type to be 'u64'\n", type_beginning->line_number, type_beginning->column_number);
-    } 
+      errorf("Line:%d, column:%d.  Error: expected the primitive type to be 'u64'\n", type_beginning->line_number, type_beginning->column_number);
+    }
     Node_Type type = {
       .token=type_beginning[0],
       .type_type=type_primitive_type,
@@ -619,6 +721,35 @@ Node_Type parse_type(const Token * type_beginning, const int type_sz) {
     type.type_type = type_ptr_type;
     type.type_value.type_ptr_value = smalloc(sizeof(*type.type_value.type_ptr_value));
     *type.type_value.type_ptr_value = parse_type(&type_beginning[i + 1], type_sz - 1); // add 1 to skip the already parsed "ptr", and sub 1 to account for that
+    i += 1;
+  }
+  else if (compare_token_to_string(type_beginning[i + 1], "[") && compare_token_to_string(type_beginning[i + type_sz - 1], "]")) {
+    Node_Type primitive_type = {
+      .token=type_beginning[i],
+      .type_type=type_primitive_type,
+      .type_value.type_primitive_value=type_beginning[i]
+    };
+    if (!compare_token_to_string(type_beginning[0], "u64")) {
+      errorf("Line:%d, column:%d.  Error: expected the primitive type to be 'u64'\n", primitive_type.token.line_number, primitive_type.token.column_number);
+    }
+    i += 1;
+    // substract 1 to skip for the primitive type
+    int offset = offset_of_match_square_bracket(&type_beginning[i],  type_sz - 1) - 1; // substract 1 to skip the ending ']'
+    // expects only a single token inside the square brackets
+    if (offset != 1) {
+      errorf("Line:%d, column:%d.  Error: expected a single interger inside square brackets in declaration'\n", type_beginning[i].line_number, type_beginning[i].column_number);
+    }
+    // the token inside the square bracktes has to be a number
+    Token elements_count = type_beginning[i + offset];
+    if (elements_count.type != Number) {
+      errorf("Line:%d, column:%d.  Error: expected a single interger inside square brackets in declaration'\n", type_beginning[i].line_number, type_beginning[i].column_number);
+    }
+    type.token = primitive_type.token;
+    type.type_type = type_array_type;
+    type.type_value.type_array_value = smalloc(sizeof(*type.type_value.type_array_value));
+    type.type_value.type_array_value->primitive_type = smalloc(sizeof(*type.type_value.type_array_value->primitive_type));
+    *type.type_value.type_array_value->primitive_type = primitive_type;
+    type.type_value.type_array_value->elements_count = elements_count;
     i += 1;
   }
   else {

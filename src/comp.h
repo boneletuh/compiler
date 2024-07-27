@@ -19,11 +19,23 @@ void free_type(Node_Type type) {
       free_type(*type.type_value.type_ptr_value);
       free(type.type_value.type_ptr_value);
       break;
+    case type_array_type:
+      free_type(*type.type_value.type_array_value->primitive_type);
+      free(type.type_value.type_array_value->primitive_type);
+      free(type.type_value.type_array_value);
+      break;
   }
 }
 
 void free_expresion(Node_Expresion expresion) {
   switch (expresion.expresion_type) {
+    case expresion_array_type:
+      for (int i = 0; i < expresion.expresion_value.expresion_array_value->elements_count; i++) {
+        free_expresion(expresion.expresion_value.expresion_array_value->elements[i]);
+      }
+      free(expresion.expresion_value.expresion_array_value->elements);
+      free(expresion.expresion_value.expresion_array_value);
+      break;
     case expresion_binary_operation_type:
       free_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side);
       free_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side);

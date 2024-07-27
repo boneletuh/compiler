@@ -25,7 +25,7 @@ typedef struct Vars_list {
 } Vars_list;
 
 // returns if the 2 types are equal
-bool compare_2_types(const Node_Type type1, const Node_Type type2) {
+static bool compare_2_types(const Node_Type type1, const Node_Type type2) {
   if (type1.type_type != type2.type_type) {
     return false;
   }
@@ -39,6 +39,11 @@ bool compare_2_types(const Node_Type type1, const Node_Type type2) {
     Node_Type tmp_type1 = *type1.type_value.type_ptr_value;
     Node_Type tmp_type2 = *type2.type_value.type_ptr_value;
     return compare_2_types(tmp_type1, tmp_type2);
+  }
+  else if (type1.type_type == type_array_type) {
+    Node_Array_type tmp_type1 = *type1.type_value.type_array_value;
+    Node_Array_type tmp_type2 = *type2.type_value.type_array_value;
+    return compare_2_types(*tmp_type1.primitive_type, *tmp_type2.primitive_type) && compare_str_of_tokens(tmp_type1.elements_count, tmp_type2.elements_count);
   }
   else {
     implementation_error("checking this type of type not implemented");
@@ -60,7 +65,7 @@ static Symbol get_symbol_from_token(const Vars_list vars, const Token token) {
     }
   }
   implementation_error("could not get the associated symbol from token in checker");
-  // unrecheable
+  // unreachable
   return (Symbol) {};
 }
 
@@ -79,7 +84,7 @@ Node_Type get_type_of_expresion(const Vars_list vars, const Node_Expresion expre
     if (uni_operation.operation_type == unary_operation_addr_type) {
       type.token = NULL_TOKEN;
       type.type_type = type_ptr_type;
-      type.type_value.type_ptr_value = smalloc(sizeof(*type.type_value.type_ptr_value)); // FIX: this leaks memory, too bad
+      type.type_value.type_ptr_value = smalloc(sizeof(*type.type_value.type_ptr_value)); // FIX: this leaks memory
       *type.type_value.type_ptr_value = get_type_of_expresion(vars, uni_expresion);
     }
     // if the operation is the dereference operator `*`, the returned type is type the pointer holds
@@ -103,6 +108,21 @@ Node_Type get_type_of_expresion(const Vars_list vars, const Node_Expresion expre
     }
     // does not matter if its `lhs_type` or `rhs_type` 
     return lhs_type;
+  }
+  if (expresion.expresion_type == expresion_array_type) {
+    Node_Type type;
+    type.token = NULL_TOKEN;
+    type.type_type = type_array_type;
+    type.type_value.type_array_value = smalloc(sizeof(*type.type_value.type_array_value));
+    type.type_value.type_array_value->primitive_type = smalloc(sizeof(*type.type_value.type_array_value->primitive_type));
+    *type.type_value.type_array_value->primitive_type = get_type_of_expresion(vars, expresion.expresion_value.expresion_array_value->elements[0]);
+    // FIX: convert the number to token in a more reasonable way
+    type.type_value.type_array_value->elements_count.beginning = smalloc(2);
+    type.type_value.type_array_value->elements_count.length = 2;
+    type.type_value.type_array_value->elements_count.beginning[0] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 10;
+    type.type_value.type_array_value->elements_count.beginning[1] = '0' + expresion.expresion_value.expresion_array_value->elements_count % 10;
+    type.type_value.type_array_value->elements_count.type = Number;
+    return type;
   }
   if (expresion.expresion_type == expresion_number_type) {
     // FIX: can not get the type of an integer literal so assume it is `u64`
@@ -133,8 +153,11 @@ static bool is_var_in_var_list(const Vars_list vars, const Token variable) {
 }
 
 // checks if there is some undeclared var in the expresion, if so it throws an error
-bool is_expresion_valid(const Vars_list scopes, const Node_Expresion expresion) {
-  if (expresion.expresion_type == expresion_identifier_type) {
+static bool is_expresion_valid(const Vars_list scopes, const Node_Expresion expresion) {
+  if (expresion.expresion_type == expresion_number_type) {
+    // does not need to check the number
+  }
+  else if (expresion.expresion_type == expresion_identifier_type) {
     Token variable = expresion.expresion_value.expresion_identifier_value;
     if (!is_var_in_var_list(scopes, variable)) {
       errorf("Line:%d, column:%d.  Error: undeclared variable used\n", variable.line_number, variable.column_number);
@@ -162,6 +185,31 @@ bool is_expresion_valid(const Vars_list scopes, const Node_Expresion expresion) 
       implementation_error("unkown type of unary operation while checking");
     }
     is_expresion_valid(scopes, uni_operation.expresion);
+  }
+  else if (expresion.expresion_type == expresion_array_type) {
+    Node_Array array = *expresion.expresion_value.expresion_array_value;
+    if (array.elements_count == 0) {
+      error("can not have an empty array in expresion");
+      return false;
+    }
+
+    // check that every expresion inside the array is valid
+    for (int i = 0; i < array.elements_count; i++) {
+      if (!is_expresion_valid(scopes, array.elements[i])) {
+        return false;
+      }
+    }
+    // also check that every expression inside has the same type
+    const Node_Type expected_type = get_type_of_expresion(scopes, array.elements[0]); 
+    for (int i = 0; i < array.elements_count; i++) {
+      Node_Type sub_expresion_type = get_type_of_expresion(scopes, array.elements[i]);
+      if (!compare_2_types(expected_type, sub_expresion_type)) {
+        errorf("Line:%d, column:%d.  Error: the elements inside the array does not have the same type\n", sub_expresion_type.token.line_number, sub_expresion_type.token.column_number);
+      }
+    }
+  }
+  else {
+    implementation_error("checking this type of expresion is not implemented");
   }
   return true;
 }
@@ -229,7 +277,7 @@ void check_statement(Vars_list * variables, const Node_Statement stmt) {
 
       // check that the types of the declaration are valid with the ones of the expresion
       if (!compare_2_types(variable.type, get_type_of_expresion(*variables, expresion))) {
-        error("type in variable declaration");
+        error("the type in variable declaration does not match the expresion type");
       }
       break;
     }

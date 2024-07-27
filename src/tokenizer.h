@@ -18,6 +18,8 @@ typedef struct Token {
     Semi_colon,
     Curly_bracket,
     Bracket,
+    Square_bracket,
+    Comma,
     End_of_file
   } type;
   // extra info for better error messages
@@ -147,7 +149,6 @@ Token * lexer(char * string) {
           token_beginning = i;
           mode = searching_token;
         }
-
         else if (symbol == ';') {
           new_token.beginning = string + token_beginning;
           new_token.length = 1;
@@ -161,7 +162,6 @@ Token * lexer(char * string) {
           token_beginning = i;
           mode = searching_token;
         }
-
         else if (symbol == '{' || symbol == '}') {
           new_token.beginning = string + token_beginning;
           new_token.length = 1;
@@ -179,6 +179,32 @@ Token * lexer(char * string) {
           new_token.beginning = string + token_beginning;
           new_token.length = 1;
           new_token.type = Bracket;
+          new_token.line_number = line_number;
+          new_token.column_number = column_number;
+
+          token_array = append_token(token_array, token_count, new_token);
+          token_count++;
+
+          token_beginning = i;
+          mode = searching_token;
+        }
+        else if (symbol == '[' || symbol == ']') {
+          new_token.beginning = string + token_beginning;
+          new_token.length = 1;
+          new_token.type = Square_bracket;
+          new_token.line_number = line_number;
+          new_token.column_number = column_number;
+
+          token_array = append_token(token_array, token_count, new_token);
+          token_count++;
+
+          token_beginning = i;
+          mode = searching_token;
+        }
+        else if (symbol == ',') {
+          new_token.beginning = string + token_beginning;
+          new_token.length = 1;
+          new_token.type = Comma;
           new_token.line_number = line_number;
           new_token.column_number = column_number;
 
@@ -285,7 +311,25 @@ bool compare_token_to_string(const Token token, const char * string) {
   return i == token.length && string[i] == '\0';
 }
 
+// converts the string of the number token to an integer assuming it is in ascii and decimal
+int number_token_to_int(const Token number) {
+  if (number.type != Number) {
+    implementation_error("tried to convert token to integer but token is not type Number");
+  }
+  int result = 0;
+  for (int i = 0; i < number.length; i++) {
+    result *= 10;
+    result += number.beginning[i] - '0';
+  }
+  return result;
+}
+
+// returns if 2 tokens are equal
 bool compare_str_of_tokens(const Token token1, const Token token2) {
+  // if the tokens are number see if their integer values are the same
+  if (token1.type == Number && token2.type == Number) {
+    return number_token_to_int(token1) == number_token_to_int(token2);
+  }
   if (token1.length != token2.length) {
     return false;
   }

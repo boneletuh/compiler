@@ -15,17 +15,42 @@ static void add_string_to_file(FILE * file_ptr, const char * string) {
   fputs(string, file_ptr);
 }
 
+// the size of the native types in bytes
+enum Types_sizes {
+  U64_sz = 8,
+  PTR_sz = 8  // only in 64 bit platforms
+};
+
+// returns the size of the given type in bytes
+static int get_size_of_type(Node_Type type) {
+  switch (type.type_type) {
+    case type_primitive_type:
+      return U64_sz;
+      break;
+    case type_ptr_type:
+      return PTR_sz;
+      break;
+    case type_array_type:
+      return get_size_of_type(*type.type_value.type_array_value->primitive_type) * number_token_to_int(type.type_value.type_array_value->elements_count);
+      break;
+  }
+  implementation_error("tried to get the size of an unkown type");
+  // unreachable
+  return -1;
+}
+
+
 /* * * * * * * * * * *
  * Generating C code *
  * * * * * * * * * * */
 
-void gen_C_scope(const Node_Scope scope, FILE * out_file_name);
+static void gen_C_scope(const Node_Scope scope, FILE * out_file_name);
 void gen_C_code(const Node_Program syntax_tree, const char * out_file_name);
 
-void gen_C_expresion(const Node_Expresion expresion, FILE * file_ptr) {
+static void gen_C_expresion(const Node_Expresion expresion, FILE * file_ptr) {
   switch (expresion.expresion_type) {
     case expresion_number_type:
-      add_token_to_file(file_ptr, expresion.expresion_value.expresion_number_value.number_token);
+      add_token_to_file(file_ptr, expresion.expresion_value.expresion_number_value);
       break;
     case expresion_identifier_type:
       add_token_to_file(file_ptr, expresion.expresion_value.expresion_identifier_value);
@@ -98,13 +123,22 @@ void gen_C_expresion(const Node_Expresion expresion, FILE * file_ptr) {
       add_string_to_file(file_ptr, ")");
       break;
 
+    case expresion_array_type:
+      add_string_to_file(file_ptr, "{");
+      for (int i = 0; i < expresion.expresion_value.expresion_array_value->elements_count; i++) {
+        gen_C_expresion(expresion.expresion_value.expresion_array_value->elements[i], file_ptr);
+        add_string_to_file(file_ptr, ", ");
+      }
+      add_string_to_file(file_ptr, "}");
+      break;
+
     default:
-      implementation_error("unexpected type in expresion while C binary operation generation");
+      implementation_error("unexpected type in expresion while C expresion generation");
       break;
   }
 }
 
-void gen_C_type(FILE * out_file_ptr, const Node_Type type) {
+static void gen_C_type(FILE * out_file_ptr, const Node_Type type) {
   switch (type.type_type) {
     case type_primitive_type:
       add_string_to_file(out_file_ptr, "uint64_t ");
@@ -113,19 +147,54 @@ void gen_C_type(FILE * out_file_ptr, const Node_Type type) {
       gen_C_type(out_file_ptr, *type.type_value.type_ptr_value);
       add_string_to_file(out_file_ptr, "* ");
       break;
+    case type_array_type:
+      gen_C_type(out_file_ptr, *type.type_value.type_array_value->primitive_type);
+      add_string_to_file(out_file_ptr, "[");
+      add_token_to_file(out_file_ptr, type.type_value.type_array_value->elements_count);
+      add_string_to_file(out_file_ptr, "]");
+      break;
     default:
       implementation_error("generation of this type of type not implemented in C");
   }
 }
 
+static void gen_C_var_decl_type_and_name(FILE * out_file_ptr, const Token var_name, const Node_Type type) {
+  bool has_var_name_been_written = false;
+  switch (type.type_type) {
+    case type_primitive_type:
+      add_string_to_file(out_file_ptr, "uint64_t ");
+      break;
+    case type_ptr_type:
+      gen_C_type(out_file_ptr, *type.type_value.type_ptr_value);
+      add_string_to_file(out_file_ptr, "* ");
+      break;
+    case type_array_type:
+      // FIX: the recursive arrays translation to C in wrong (sometimes), it needs brackets
+      gen_C_type(out_file_ptr, *type.type_value.type_array_value->primitive_type);
+        if (!has_var_name_been_written) {
+        add_token_to_file(out_file_ptr, var_name);
+      }
+      has_var_name_been_written = true;
 
-void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
+      add_string_to_file(out_file_ptr, "[");
+      add_token_to_file(out_file_ptr, type.type_value.type_array_value->elements_count);
+      add_string_to_file(out_file_ptr, "]");
+      break;
+    default:
+      implementation_error("generation of this type of type not implemented in C");
+  }
+  if (!has_var_name_been_written) {
+    add_token_to_file(out_file_ptr, var_name);
+  }
+}
+
+static void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
   switch (stmt.statement_type) {
     case var_declaration_type:
       // var declaration node
       add_string_to_file(out_file_ptr, " ");
-      gen_C_type(out_file_ptr, stmt.statement_value.var_declaration.type);
-      add_token_to_file(out_file_ptr, stmt.statement_value.var_declaration.var_name);
+      gen_C_var_decl_type_and_name(out_file_ptr, stmt.statement_value.var_declaration.var_name, stmt.statement_value.var_declaration.type);
+
       add_string_to_file(out_file_ptr, " = ");
       gen_C_expresion(stmt.statement_value.var_declaration.value, out_file_ptr);
       break;
@@ -137,7 +206,7 @@ void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
       add_string_to_file(out_file_ptr, ")");
       break;
 
-      case print_type:
+    case print_type:
       // print node
       add_string_to_file(out_file_ptr, " putchar(");
       gen_C_expresion(stmt.statement_value.print.chr, out_file_ptr);
@@ -193,7 +262,7 @@ void gen_C_statement(const Node_Statement stmt, FILE * out_file_ptr) {
   add_string_to_file(out_file_ptr, ";\n");
 }
 
-void gen_C_scope(const Node_Scope scope, FILE * out_file_ptr) {
+static void gen_C_scope(const Node_Scope scope, FILE * out_file_ptr) {
   for (int i = 0; i < scope.statements_count; i++) {
     gen_C_statement(scope.statements_node[i], out_file_ptr);
   }
@@ -240,20 +309,20 @@ static int find_var_stack_place(const Scopes_List vars_list, const Token var) {
   }
   // couldnt find the variable in the list
   // this sould have been detected by the checker
-  implementation_error("could not find variable in variable array");
+  implementation_error("could not find variable in variable list");
   // unreachable
   return -1;
 }
 
 // generates asm from expresion the result will be put in the top of the stack
-void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int stack_size, const Scopes_List vars) {
+static void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int stack_size, const Scopes_List vars) {
   switch (expresion.expresion_type) {
     case expresion_number_type:
-      stack_size += 8;
+      stack_size += U64_sz;
       add_string_to_file(file_ptr, "mov qword [rbp - ");
       fprintf(file_ptr, "%d", stack_size);
       add_string_to_file(file_ptr, "], ");
-      add_token_to_file(file_ptr, expresion.expresion_value.expresion_number_value.number_token);
+      add_token_to_file(file_ptr, expresion.expresion_value.expresion_number_value);
       add_string_to_file(file_ptr, "\n");
       break;
 
@@ -380,7 +449,7 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
       switch (expresion.expresion_value.expresion_unary_operation_value->operation_type) {
         case unary_operation_addr_type:
           // get the address of a variable
-          stack_size += 8;
+          stack_size += PTR_sz;
           int var_addr =  find_var_stack_place(vars, expresion.expresion_value.expresion_unary_operation_value->expresion.expresion_value.expresion_identifier_value);
           add_string_to_file(file_ptr, "lea rax, [rbp - ");
           fprintf(file_ptr, "%d", var_addr);
@@ -391,12 +460,12 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
           add_string_to_file(file_ptr, "], rax\n");
           break;
         case unary_operation_deref_type:
-          stack_size += 8;
+          stack_size += PTR_sz;
           // generate the expression
           gen_NASM_expresion(file_ptr, expresion.expresion_value.expresion_unary_operation_value->expresion, stack_size, vars);
           // dereference the pointer
           add_string_to_file(file_ptr, "mov rax, qword [rbp - ");
-          fprintf(file_ptr, "%d", stack_size-8);
+          fprintf(file_ptr, "%d", stack_size-PTR_sz);
           add_string_to_file(file_ptr, "]\n");
           add_string_to_file(file_ptr, "mov rax, qword [rax]\n");
           // put the result into the stack top
@@ -410,6 +479,18 @@ void gen_NASM_expresion(FILE * file_ptr, const Node_Expresion expresion, int sta
           implementation_error("unkown unary operation type while ASM code generation");
       }
       break;
+
+  case expresion_array_type:;
+    Node_Array array = *expresion.expresion_value.expresion_array_value;
+    // FIX: get the size of the individual elements of the array using a function
+    int single_element_size = U64_sz; //get_size_of_expresion(array.elements[0]);
+    // generate every element in the array
+    for (int i = 0; i < array.elements_count; i++) {
+      gen_NASM_expresion(file_ptr, array.elements[i], stack_size, vars);
+      // progresively allocate space for the element in each iteration
+      stack_size += single_element_size;
+    }
+    break;
 
   default:
     implementation_error("unexpected type in expresion while ASM binary operation generation");
@@ -461,139 +542,190 @@ static void free_scopes_list(Scopes_List scopes) {
 
 // keep track of an unique identification for the labels so there arent collisions with other labels
 static int uuid = 0;
-void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node_Statement stmt, int * stack_size) {
+
+
+static void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node_Statement stmt, int * stack_size);
+
+
+static void gen_NASM_var_declaration(FILE * out_file_ptr, Scopes_List * variables, Node_Var_declaration var_declaration, int * stack_size) {
+  if (var_declaration.type.type_type == type_array_type) {
+    int array_size = get_size_of_type(var_declaration.type);
+    gen_NASM_expresion(out_file_ptr, var_declaration.value, *stack_size, *variables);
+    // allocate space for array in stack
+    *stack_size += array_size;
+    // add the variable to the list of vars
+    NASM_append_var_to_var_list(variables, var_declaration.var_name, *stack_size);
+  }
+  else {
+    int expr_size = get_size_of_type(var_declaration.type);
+    gen_NASM_expresion(out_file_ptr, var_declaration.value, *stack_size, *variables);
+    // get the variable from the top of the stack into rax
+    add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
+    fprintf(out_file_ptr, "%d", *stack_size + expr_size); // add the size because the value is above the stack top
+    add_string_to_file(out_file_ptr, "]\n");
+    // allocate space for variable in stack
+    *stack_size += expr_size;
+    // assign the value of the expresion from the stack
+    add_string_to_file(out_file_ptr, "mov qword [rbp - ");
+    fprintf(out_file_ptr, "%d", *stack_size);
+    add_string_to_file(out_file_ptr, "], rax"); // rax has the result of the expresion
+    // add the variable to the list of vars
+    NASM_append_var_to_var_list(variables, var_declaration.var_name, *stack_size);
+  }
+}
+
+static void gen_NASM_exit_node(FILE * out_file_ptr, Scopes_List * variables, Node_Exit exit_node, int * stack_size) {
+  // NOTE: this only works for unix-like OSes
+  gen_NASM_expresion(out_file_ptr, exit_node.exit_code, *stack_size, *variables);
+  add_string_to_file(out_file_ptr, "mov rax, 60\n");
+  add_string_to_file(out_file_ptr, "mov rdi, qword [rbp - ");
+  fprintf(out_file_ptr, "%d", *stack_size+U64_sz);
+  add_string_to_file(out_file_ptr, "]\n");
+  add_string_to_file(out_file_ptr, "syscall\n");
+}
+
+static void gen_NASM_scope(FILE * out_file_ptr, Scopes_List * variables, Node_Scope scope, int * stack_size) {
+  Scopes_List temp_scopes = NASM_copy_scopes_list(*variables); // FIX: create new scope instead of copying all the vars
+  //NASM_create_scope(&temp_scopes);
+  int temp_stack_size = *stack_size;
+  for (int i = 0; i < scope.statements_count; i++) {
+    gen_NASM_statement(out_file_ptr, &temp_scopes, scope.statements_node[i], &temp_stack_size);
+  }
+  free_scopes_list(temp_scopes);
+}
+
+static void gen_NASM_var_assignment(FILE * out_file_ptr, Scopes_List * variables, Node_Var_assignment var_assignment, int * stack_size) {
+  gen_NASM_expresion(out_file_ptr, var_assignment.value, *stack_size, *variables);
+  // get the variable from the top of the stack into rax
+  add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
+  fprintf(out_file_ptr, "%d", *stack_size+8); // add 8 because the value is above the stack top
+  add_string_to_file(out_file_ptr, "]\n");
+  // assign the value of the expresion from the stack
+  add_string_to_file(out_file_ptr, "mov qword [rbp - ");
+  fprintf(out_file_ptr, "%d", find_var_stack_place(*variables, var_assignment.var_name));
+  add_string_to_file(out_file_ptr, "], rax"); // rax has the result of the expresion
+}
+
+static void gen_NASM_print(FILE * out_file_ptr, Scopes_List * variables, Node_Print print_node, int * stack_size) {
+  // NOTE: this only works for unix-like OSes
+  gen_NASM_expresion(out_file_ptr, print_node.chr, *stack_size, *variables);
+  add_string_to_file(out_file_ptr, "lea rsi, [rbp - ");
+  fprintf(out_file_ptr, "%d", *stack_size+U64_sz);
+  add_string_to_file(out_file_ptr, "]\n");
+  add_string_to_file(out_file_ptr, "mov rdx, 1\n"); // symbols to print
+  add_string_to_file(out_file_ptr, "mov rdi, 1\n"); // std output
+  add_string_to_file(out_file_ptr, "mov rax, 1\n"); // write syscall
+  add_string_to_file(out_file_ptr, "syscall\n");
+}
+
+static void gen_NASM_if_node(FILE * out_file_ptr, Scopes_List * variables, Node_If if_node, int * stack_size) {
+  // generate the condition
+  Node_Expresion condition = if_node.condition;
+  gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
+
+  // if the condition is not true skip the if body
+  add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
+  fprintf(out_file_ptr, "%d", *stack_size+U64_sz);
+  add_string_to_file(out_file_ptr, "]\n");
+  add_string_to_file(out_file_ptr, "test rax, rax\n");
+  int if_uid = uuid; // save the uid in case it gets modified in the scope
+  uuid++;
+  // if the condition is not met skip the `if` block
+  fprintf(out_file_ptr, "jz .IF%d\n", if_uid);
+
+  { // generate the `if` scope
+    Scopes_List temp_scopes = NASM_copy_scopes_list(*variables);
+    //NASM_create_scope(&temp_scopes);
+    int tmp_stack_sz = *stack_size;
+    for (int i = 0; i < if_node.scope.statements_count; i++) {
+      gen_NASM_statement(out_file_ptr, &temp_scopes, if_node.scope.statements_node[i], &tmp_stack_sz);
+    }
+    free_scopes_list(temp_scopes);
+  }
+  if (if_node.has_else_block) {
+    // if the `if` block is executed skip the `else` block
+    fprintf(out_file_ptr, "jmp .EL%d\n", if_uid);
+  }
+  // generate the `if` label
+  fprintf(out_file_ptr, ".IF%d:\n", if_uid);
+  if (if_node.has_else_block) {
+    // generate `else` block code
+    Scopes_List temp_scopes = NASM_copy_scopes_list(*variables);
+    //NASM_create_scope(&temp_scopes);
+    int tmp_stack_sz = *stack_size;
+    for (int i = 0; i < if_node.else_block.statements_count; i++) {
+      gen_NASM_statement(out_file_ptr, &temp_scopes, if_node.else_block.statements_node[i], &tmp_stack_sz);
+    }
+    free_scopes_list(temp_scopes);
+    fprintf(out_file_ptr, ".EL%d:\n", if_uid); // generate the `else` label
+  }
+}
+
+static void gen_NASM_while_node(FILE * out_file_ptr, Scopes_List * variables, Node_While while_node, int * stack_size) {
+  int while_uid = uuid; // save the uid in case it gets modified in the scope
+  uuid++;
+  // generate the label for repeating the loop
+  fprintf(out_file_ptr, ".WHB%d:\n", while_uid); // WHB is for "while beginning"
+  // generate the condition
+  Node_Expresion condition = while_node.condition;
+  gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
+
+  // if the condition is not true skip the while body
+  add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
+  fprintf(out_file_ptr, "%d", *stack_size+U64_sz);
+  add_string_to_file(out_file_ptr, "]\n");
+  add_string_to_file(out_file_ptr, "test rax, rax\n");
+  fprintf(out_file_ptr, "jz .WHE%d\n", while_uid); // WHE is for "while end"
+
+  // generate the scope
+  Scopes_List temp_scopes = NASM_copy_scopes_list(*variables);
+  //NASM_create_scope(&temp_scopes);
+  int temp_stack_size = *stack_size;
+  for (int i = 0; i < while_node.scope.statements_count; i++) {
+    gen_NASM_statement(out_file_ptr, &temp_scopes, while_node.scope.statements_node[i], &temp_stack_size);
+  }
+  free_scopes_list(temp_scopes);
+
+  fprintf(out_file_ptr, "jmp .WHB%d\n", while_uid);
+  fprintf(out_file_ptr, ".WHE%d:\n", while_uid); // generate the label for finnishing the while loop
+}
+
+
+static void gen_NASM_statement(FILE * out_file_ptr, Scopes_List * variables, const Node_Statement stmt, int * stack_size) {
   switch (stmt.statement_type) {
     case var_declaration_type:
-      gen_NASM_expresion(out_file_ptr, stmt.statement_value.var_declaration.value, *stack_size, *variables);
-      // get the variable from the top of the stack into rax
-      add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
-      fprintf(out_file_ptr, "%d", *stack_size+8); // add 8 because the value is above the stack top
-      add_string_to_file(out_file_ptr, "]\n");
-      // allocate space for variable in stack
-      *stack_size += 8; // 8 is the size of 64 bit integer
-      // assign the value of the expresion from the stack
-      add_string_to_file(out_file_ptr, "mov qword [rbp - ");
-      fprintf(out_file_ptr, "%d", *stack_size);
-      add_string_to_file(out_file_ptr, "], rax"); // rax has the result of the expresion
-      // add the variable to the list of vars
-      NASM_append_var_to_var_list(variables, stmt.statement_value.var_declaration.var_name, *stack_size);
+      Node_Var_declaration var_declaration = stmt.statement_value.var_declaration;
+      gen_NASM_var_declaration(out_file_ptr, variables, var_declaration, stack_size);
       break;
 
     case exit_node_type:
-      // NOTE: this only works for unix-like OSes
-      gen_NASM_expresion(out_file_ptr, stmt.statement_value.exit_node.exit_code, *stack_size, *variables);
-      add_string_to_file(out_file_ptr, "mov rax, 60\n");
-      add_string_to_file(out_file_ptr, "mov rdi, qword [rbp - ");
-      fprintf(out_file_ptr, "%d", *stack_size+8);
-      add_string_to_file(out_file_ptr, "]\n");
-      add_string_to_file(out_file_ptr, "syscall\n");
+      Node_Exit exit_node = stmt.statement_value.exit_node;
+      gen_NASM_exit_node(out_file_ptr, variables, exit_node, stack_size);
       break;
 
     case var_assignment_type:
-      gen_NASM_expresion(out_file_ptr, stmt.statement_value.var_assignment.value, *stack_size, *variables);
-      // get the variable from the top of the stack into rax
-      add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
-      fprintf(out_file_ptr, "%d", *stack_size+8); // add 8 because the value is above the stack top
-      add_string_to_file(out_file_ptr, "]\n");
-      // assign the value of the expresion from the stack
-      add_string_to_file(out_file_ptr, "mov qword [rbp - ");
-      fprintf(out_file_ptr, "%d", find_var_stack_place(*variables, stmt.statement_value.var_assignment.var_name));
-      add_string_to_file(out_file_ptr, "], rax"); // rax has the result of the expresion
+      Node_Var_assignment var_assignment = stmt.statement_value.var_assignment;
+      gen_NASM_var_assignment(out_file_ptr, variables, var_assignment, stack_size);
       break;
 
     case scope_type:
-      {
-       Scopes_List temp_scopes = NASM_copy_scopes_list(*variables); // FIX: create new scope instead of copying all the vars
-       //NASM_create_scope(&temp_scopes);
-       int temp_stack_size = *stack_size;
-       for (int i = 0; i < stmt.statement_value.scope.statements_count; i++) {
-         gen_NASM_statement(out_file_ptr, &temp_scopes, stmt.statement_value.scope.statements_node[i], &temp_stack_size);
-       }
-       free_scopes_list(temp_scopes);
-      }
+      Node_Scope scope = stmt.statement_value.scope;
+      gen_NASM_scope(out_file_ptr, variables, scope, stack_size);
       break;
 
     case if_type:
-      { // generate the condition
-       Node_Expresion condition = stmt.statement_value.if_node.condition;
-       gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
-      }
-      // if the condition is not true skip the if body
-      add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
-      fprintf(out_file_ptr, "%d", *stack_size+8);
-      add_string_to_file(out_file_ptr, "]\n");
-      add_string_to_file(out_file_ptr, "test rax, rax\n");
-      int if_uid = uuid; // save the uid in case it gets modified in the scope
-      uuid++;
-      // if the condition is not met skip the `if` block
-      fprintf(out_file_ptr, "jz .IF%d\n", if_uid);
-
-      { // generate the `if` scope
-       Scopes_List temp_scopes = NASM_copy_scopes_list(*variables);
-       //NASM_create_scope(&temp_scopes);
-       int tmp_stack_sz = *stack_size;
-       for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
-         gen_NASM_statement(out_file_ptr, &temp_scopes, stmt.statement_value.if_node.scope.statements_node[i], &tmp_stack_sz);
-       }
-       free_scopes_list(temp_scopes);
-      }
-      // if the `if` block is executed skip the `else` block
-      fprintf(out_file_ptr, "jmp .EL%d\n", if_uid);
-      fprintf(out_file_ptr, ".IF%d:\n", if_uid); // generate the `if` label
-      { // generate `else` block code
-       Scopes_List temp_scopes = NASM_copy_scopes_list(*variables);
-       //NASM_create_scope(&temp_scopes);
-       int tmp_stack_sz = *stack_size;
-       for (int i = 0; i < stmt.statement_value.if_node.else_block.statements_count; i++) {
-         gen_NASM_statement(out_file_ptr, &temp_scopes, stmt.statement_value.if_node.else_block.statements_node[i], &tmp_stack_sz);
-       }
-       free_scopes_list(temp_scopes);
-      }
-      fprintf(out_file_ptr, ".EL%d:\n", if_uid); // generate the `else` label
+      Node_If if_node = stmt.statement_value.if_node;
+      gen_NASM_if_node(out_file_ptr, variables, if_node, stack_size);
       break;
 
-    case while_type:;
-      int while_uid = uuid; // save the uid in case it gets modified in the scope
-      uuid++;
-      // generate the label for repeating the loop
-      fprintf(out_file_ptr, ".WHB%d:\n", while_uid); // WHB is for "while beginning"
-      { // generate the condition
-       Node_Expresion condition = stmt.statement_value.if_node.condition;
-       gen_NASM_expresion(out_file_ptr, condition, *stack_size, *variables);
-      }
-      // if the condition is not true skip the while body
-      add_string_to_file(out_file_ptr, "mov rax, qword [rbp - ");
-      fprintf(out_file_ptr, "%d", *stack_size+8);
-      add_string_to_file(out_file_ptr, "]\n");
-      add_string_to_file(out_file_ptr, "test rax, rax\n");
-      fprintf(out_file_ptr, "jz .WHE%d\n", while_uid); // WHE is for "while end"
-
-
-      // generate the scope
-      {
-       Scopes_List temp_scopes = NASM_copy_scopes_list(*variables);
-       //NASM_create_scope(&temp_scopes);
-       int temp_stack_size = *stack_size;
-       for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
-         gen_NASM_statement(out_file_ptr, &temp_scopes, stmt.statement_value.if_node.scope.statements_node[i], &temp_stack_size);
-       }
-       free_scopes_list(temp_scopes);
-      }
-
-      fprintf(out_file_ptr, "jmp .WHB%d\n", while_uid);
-      fprintf(out_file_ptr, ".WHE%d:\n", while_uid); // generate the label for finnishing the while loop
+    case while_type:
+      Node_While while_node = stmt.statement_value.while_node;
+      gen_NASM_while_node(out_file_ptr, variables, while_node, stack_size);
       break;
     
     case print_type:
-      // NOTE: this only works for unix-like OSes
-      gen_NASM_expresion(out_file_ptr, stmt.statement_value.exit_node.exit_code, *stack_size, *variables);
-      add_string_to_file(out_file_ptr, "lea rsi, [rbp - ");
-      fprintf(out_file_ptr, "%d", *stack_size+8);
-      add_string_to_file(out_file_ptr, "]\n");
-      add_string_to_file(out_file_ptr, "mov rdx, 1\n"); // symbols to print
-      add_string_to_file(out_file_ptr, "mov rdi, 1\n"); // std output
-      add_string_to_file(out_file_ptr, "mov rax, 1\n"); // write syscall
-      add_string_to_file(out_file_ptr, "syscall\n");
+      Node_Print print_node = stmt.statement_value.print;
+      gen_NASM_print(out_file_ptr, variables, print_node, stack_size);
       break;
 
     default:

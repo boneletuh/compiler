@@ -29,6 +29,15 @@ Operators:
  The get address operator `&` returns the addres of its operand which has to be a variable.
  The dereference operator `*` returns the value its operand was pointing to, the operand has to be a pointer.
 
+Types:
+-The types are used in variable declarations to allow the compiler to use the right operations
+  and manage the memory correctly.
+-The main data types are:
+  u64 - 8 bytes - unsigned integer
+-There are also other types decorators that can be used along side a main type:
+  ptr - 8 bytes - unsigned integer - a value that points to another data type
+  [N] - N * size of the type it contains - an array has a collection of elements of the same type
+   N can not be 0
 
 Variables:
 -Declaration:
