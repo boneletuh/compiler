@@ -19,6 +19,7 @@ Operators:
   *		2
   /		2
   ^		3
+  []  5
  The unary operator precedences are:
   &   4
   *   4
@@ -28,6 +29,7 @@ Operators:
   are normal unsigned integer arithmetic operations.
  The get address operator `&` returns the addres of its operand which has to be a variable.
  The dereference operator `*` returns the value its operand was pointing to, the operand has to be a pointer.
+ The array acces operator can only be used on an array with an index of type u64.
 
 Types:
 -The types are used in variable declarations to allow the compiler to use the right operations

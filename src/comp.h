@@ -111,6 +111,8 @@ void compile(const char * source_code_file, const char * result_file) {
 
   Node_Program syntax_tree = parser(tokens);
 
+  //D_print_syntax_tree(syntax_tree, 0);
+
   if (is_valid_program(syntax_tree)) {
     const char * extension = get_file_extension(result_file);
     if (strcmp(extension, ".c") == 0) {

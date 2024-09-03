@@ -29,10 +29,13 @@ typedef struct Token {
 
 
 #ifdef DEBUG
-void D_print_tokens(const Token * tokens, const int size) {
-  for (int i = 0; i < size; i++) {
-    Token token = tokens[i];
-    printf("%.*s\n", token.length, token.beginning);
+void D_print_token(const Token token) {
+  printf("%.*s\n", token.length, token.beginning);
+}
+
+void D_print_tokens(const Token * tokens, const int amount) {
+  for (int i = 0; i < amount; i++) {
+    D_print_token(tokens[i]);
   }
 }
 #endif
@@ -307,7 +310,6 @@ bool compare_token_to_string(const Token token, const char * string) {
       return false;
     }
   }
-
   return i == token.length && string[i] == '\0';
 }
 

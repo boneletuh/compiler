@@ -40,7 +40,7 @@ typedef struct Node_Expresion {
     expresion_identifier_type,
     expresion_binary_operation_type,
     expresion_unary_operation_type,
-    expresion_array_type
+    expresion_array_type,
   } expresion_type;
   union {
     Token expresion_number_value;
@@ -62,7 +62,8 @@ typedef struct Node_Binary_Operation {
     binary_operation_exp_type,
     binary_operation_big_type,
     binary_operation_les_type,
-    binary_operation_equ_type
+    binary_operation_equ_type,
+    binary_operation_access_type
   } operation_type;
   Node_Expresion right_side;
 } Node_Binary_Operation;
@@ -158,7 +159,8 @@ static char * D_bin_op_type_lookup[] = {
   [binary_operation_exp_type] = "^",
   [binary_operation_big_type] = ">",
   [binary_operation_les_type] = "<",
-  [binary_operation_equ_type] = "=="
+  [binary_operation_equ_type] = "==",
+  [binary_operation_access_type] = "[]"
 };
 char * enum_to_bin_op_type(int op_type) {
   return D_bin_op_type_lookup[op_type];
@@ -171,7 +173,7 @@ void D_print_expresion(Node_Expresion expresion, int depth) {
       depth++;
 
       printf("%*s", depth, "");
-      D_print_tokens(&expresion.expresion_value.expresion_number_value, 1);
+      D_print_token(expresion.expresion_value.expresion_number_value);
       break;
 
     case expresion_identifier_type:
@@ -179,7 +181,7 @@ void D_print_expresion(Node_Expresion expresion, int depth) {
       depth++;
 
       printf("%*s", depth, "");
-      D_print_tokens(&expresion.expresion_value.expresion_identifier_value, 1);
+      D_print_token(expresion.expresion_value.expresion_identifier_value);
       break;
 
     case expresion_binary_operation_type:
@@ -224,7 +226,7 @@ void D_print_type(Node_Type type, int depth) {
     depth++;
 
     printf("%*s", depth, "");
-    D_print_tokens(&type.type_value.type_primitive_value, 1);
+    D_print_token(type.type_value.type_primitive_value);
   }
   else if (type.type_type == type_ptr_type) {
     printf("%*sNode type ptr:\n", depth, "");
@@ -240,7 +242,7 @@ void D_print_type(Node_Type type, int depth) {
     depth++;
 
     printf("%*selements count: ", depth, "");
-    D_print_tokens(&type.type_value.type_array_value->elements_count, 1);
+    D_print_token(type.type_value.type_array_value->elements_count);
 
     printf("%*selement type:\n", depth, "");
     depth++;
@@ -260,7 +262,7 @@ void D_print_statement(Node_Statement stmt, int depth) {
 
       printf("%*sNode var decl name:\n", depth, "");
       printf("%*s", depth+1, "");
-      D_print_tokens(&var_decl.var_name, 1);
+      D_print_token(var_decl.var_name);
 
       printf("%*sNode var decl type:\n", depth, "");
       D_print_type(var_decl.type, depth+1);
@@ -294,7 +296,7 @@ void D_print_statement(Node_Statement stmt, int depth) {
 
       printf("%*sNode var assign name:\n", depth, "");
       printf("%*s", depth+1, "");
-      D_print_tokens(&var_assign.var_name, 1);
+      D_print_token(var_assign.var_name);
 
       printf("%*sNode var assign expr:\n", depth, "");
       D_print_expresion(var_assign.value, depth+1);
@@ -569,8 +571,8 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
           elements_count += 1;
           result.expresion_value.expresion_array_value->elements = srealloc(result.expresion_value.expresion_array_value->elements, sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
           result.expresion_value.expresion_array_value->elements[elements_count -1] = parse_expresion(&expresion_beginning[expr_beginning_idx], i - expr_beginning_idx);
-          i++;
-          expr_beginning_idx = i;
+          //i++;
+          expr_beginning_idx = i +1;
         }
       }
       // if there is are tokens left after the last expresion, also parse them and add them to the list
@@ -584,6 +586,12 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
     }
     Token operation;
     int min_oper_preced = BIG_NUM;
+    // if the operation to parse is an array access
+    bool is_operation_access = false;
+    int array_beginning;
+    int array_size;
+    int index_beginning;
+    int index_size;
     // if the operation to parse is binary
     bool is_operation_bin = false;
     int left_side_beginning = 0;
@@ -605,6 +613,15 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
       }
       // if it finds a square bracket skip it
       if (expresion_beginning[i].type == Square_bracket && expresion_beginning[i].beginning[0] == '[') {
+        // detect array access operation
+        // it has lower precedence than binary and unary operation
+        if (!was_last_op_or_null && !is_operation_bin && !is_operation_uni) {
+          is_operation_access = true;
+          array_beginning = left_side_beginning;
+          array_size = i - array_beginning;
+          index_beginning = i + 1;
+          index_size = offset_of_match_square_bracket(&expresion_beginning[i], size) -1; // substract 1 to skip the ']'
+        }
         i += offset_of_match_square_bracket(&expresion_beginning[i], size);
       }
       // find the operation with the lowest precedence
@@ -619,6 +636,7 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
         else if (!was_last_op_or_null && get_binary_operation_precedence(expresion_beginning[i]) <= min_oper_preced) {
           is_operation_bin = true;
           is_operation_uni = false;
+          is_operation_access = false;
           min_oper_preced = get_binary_operation_precedence(expresion_beginning[i]);
           left_side_size = i;
           operation = expresion_beginning[i];
@@ -630,13 +648,24 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
         was_last_op_or_null = false;
       }
     }
-    if (is_operation_bin) {
-      right_side_size = i - right_side_beginning;
+    //printf("%d\n", is_operation_access);
+    if (is_operation_bin || is_operation_access) {
+      int enum_op_type;
+      if (is_operation_access) {
+        enum_op_type = binary_operation_access_type;
+        left_side_beginning = array_beginning;
+        left_side_size = array_size;
+        right_side_beginning = index_beginning;
+        right_side_size = index_size;
+      } else {
+        enum_op_type = get_binary_operation_type(operation);
+        right_side_size = i - right_side_beginning;
+      }
       // create a new node and parse each side of the expresion
       Node_Binary_Operation * bin_operation = smalloc(sizeof(Node_Binary_Operation));
       // parse each side of the binary expresion recursively
       bin_operation->left_side = parse_expresion(&expresion_beginning[left_side_beginning], left_side_size);
-      bin_operation->operation_type = get_binary_operation_type(operation);
+      bin_operation->operation_type = enum_op_type;
       bin_operation->right_side = parse_expresion(&expresion_beginning[right_side_beginning], right_side_size);
 
       result.expresion_value.expresion_binary_operation_value = bin_operation;
@@ -672,7 +701,7 @@ static int next_semicolon_offset(const Token * beginning) {
       errorf("Line:%d, column:%d.  Error: could not find the expected semicolon\n", token.line_number, token.column_number);
     }
     if (token.type == Curly_bracket) {
-      errorf("Line:%d, column:%d.  Error: expected an operation in expresion\n", token.line_number, token.column_number);
+      errorf("Line:%d, column:%d.  Error: expected a semicoln before curly bracket\n", token.line_number, token.column_number);
     }
   }
   return offset;
@@ -723,33 +752,26 @@ Node_Type parse_type(const Token * type_beginning, const int type_sz) {
     *type.type_value.type_ptr_value = parse_type(&type_beginning[i + 1], type_sz - 1); // add 1 to skip the already parsed "ptr", and sub 1 to account for that
     i += 1;
   }
-  else if (compare_token_to_string(type_beginning[i + 1], "[") && compare_token_to_string(type_beginning[i + type_sz - 1], "]")) {
-    Node_Type primitive_type = {
-      .token=type_beginning[i],
-      .type_type=type_primitive_type,
-      .type_value.type_primitive_value=type_beginning[i]
-    };
-    if (!compare_token_to_string(type_beginning[0], "u64")) {
-      errorf("Line:%d, column:%d.  Error: expected the primitive type to be 'u64'\n", primitive_type.token.line_number, primitive_type.token.column_number);
+  else if (compare_token_to_string(type_beginning[i], "[")) {
+    int offset =  offset_of_match_square_bracket(&type_beginning[i],  type_sz - 1);
+    // expect a single token inside the brackets
+    if (offset -1 != 1) { // substract 1 to skip the ending ']'
+      errorf("Line:%d, column:%d.  Error: expected a single token inside the brackets for the array size\n", type_beginning[i].line_number, type_beginning[i].column_number);
     }
-    i += 1;
-    // substract 1 to skip for the primitive type
-    int offset = offset_of_match_square_bracket(&type_beginning[i],  type_sz - 1) - 1; // substract 1 to skip the ending ']'
-    // expects only a single token inside the square brackets
-    if (offset != 1) {
-      errorf("Line:%d, column:%d.  Error: expected a single interger inside square brackets in declaration'\n", type_beginning[i].line_number, type_beginning[i].column_number);
+    if (type_beginning[i + 1].type != Number) {
+      errorf("Line:%d, column:%d.  Error: expected a number inside the brackets for the array size\n", type_beginning[i].line_number, type_beginning[i].column_number);
     }
-    // the token inside the square bracktes has to be a number
-    Token elements_count = type_beginning[i + offset];
-    if (elements_count.type != Number) {
-      errorf("Line:%d, column:%d.  Error: expected a single interger inside square brackets in declaration'\n", type_beginning[i].line_number, type_beginning[i].column_number);
-    }
-    type.token = primitive_type.token;
+    type.token = type_beginning[i + 1];
     type.type_type = type_array_type;
     type.type_value.type_array_value = smalloc(sizeof(*type.type_value.type_array_value));
+    type.type_value.type_array_value->elements_count = type_beginning[i + 1];
     type.type_value.type_array_value->primitive_type = smalloc(sizeof(*type.type_value.type_array_value->primitive_type));
+
+    Node_Type primitive_type = parse_type(&type_beginning[i + 3], type_sz - 3); // the 3s are to skip the tokens: '[', number, ']'
+
     *type.type_value.type_array_value->primitive_type = primitive_type;
-    type.type_value.type_array_value->elements_count = elements_count;
+
+    i += offset;
     i += 1;
   }
   else {
@@ -904,11 +926,11 @@ Node_If parse_if_at(const Token * tokens, int * idx) {
 
 // parses while statement
 // tokens is the stream of tokens of the program
-// index is indicates the 'if' token in the tokens
+// index is indicates the 'while' token in the tokens
 // index will be updated to the corresponding '}'
 Node_While parse_while_at(const Token * tokens, int * idx) {
   // parse the condition
-  *idx += 1; // add 1 to skip the 'if'
+  *idx += 1; // add 1 to skip the 'while'
   const Token * expr = &tokens[*idx];
   int expr_sz = *idx;
   // FIX: improve this loop, it is very unsafe

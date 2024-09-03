@@ -13,7 +13,7 @@ bin_operator = "+" | "-" | "*" | "/" | ">" | "<" | "==" ;
 uni_operator = "&" ;
 
 
-Type = ("ptr", Type) | "u64" | (Type, "[", number, "]");
+Type = "u64" | ("ptr", Type) | ("[", number, "]", Type);
 
 Expresion =
      number |
@@ -21,7 +21,8 @@ Expresion =
      Binary_operation |
      Unary_operation |
      ("(", Expresion, ")") |
-     ("[", {Expresion, ","}, Expresion "]") ;
+     ("[", {Expresion, ","}, Expresion "]") |
+     (Expresion, "[", Expresion, "]") ;
 
 Binary_operation = Expresion, bin_operator, Expresion ;
 

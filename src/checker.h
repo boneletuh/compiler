@@ -13,16 +13,16 @@ typedef struct Symbol {
   Node_Type type;
 } Symbol;
 
-typedef struct Scope {
+typedef struct Symbols_scope {
   int vars_count;
   Symbol * vars;
-} Scope;
+} Symbols_scope;
 
 // array with all the scopes
-typedef struct Vars_list {
+typedef struct Symbol_table {
   int scopes_count;
-  Scope * scopes;
-} Vars_list;
+  Symbols_scope * scopes;
+} Symbol_table;
 
 // returns if the 2 types are equal
 static bool compare_2_types(const Node_Type type1, const Node_Type type2) {
@@ -54,9 +54,9 @@ static bool compare_2_types(const Node_Type type1, const Node_Type type2) {
 
 // returns the symbol associated with the token
 // if it could not find it, it throws an error
-static Symbol get_symbol_from_token(const Vars_list vars, const Token token) {
+static Symbol get_symbol_from_token(const Symbol_table vars, const Token token) {
   for (int i = 0; i < vars.scopes_count; i++) {
-    Scope scope = vars.scopes[i];
+    Symbols_scope scope = vars.scopes[i];
     for (int j = 0; j < scope.vars_count; j++) {
       Symbol symbol = scope.vars[j];
       if (compare_str_of_tokens(token, symbol.value)) {
@@ -70,78 +70,90 @@ static Symbol get_symbol_from_token(const Vars_list vars, const Token token) {
 }
 
 // returns the type of a given expresion
-Node_Type get_type_of_expresion(const Vars_list vars, const Node_Expresion expresion) {
-  if (expresion.expresion_type == expresion_identifier_type) {
-    Token identifier = expresion.expresion_value.expresion_identifier_value;
-    Symbol symbol = get_symbol_from_token(vars, identifier);
-    return symbol.type;
-  }
-  if (expresion.expresion_type == expresion_unary_operation_type) {
-    Node_Unary_Operation uni_operation = *expresion.expresion_value.expresion_unary_operation_value;
-    Node_Expresion uni_expresion = uni_operation.expresion;
-    Node_Type type;
-    // if the operation is the address operator `&`, the returned type is a pointer to the type of the expression
-    if (uni_operation.operation_type == unary_operation_addr_type) {
+Node_Type get_type_of_expresion(const Symbol_table vars, const Node_Expresion expresion) {
+  switch (expresion.expresion_type) {
+    case expresion_number_type: {
+      // FIX: can not get the type of an integer literal so assume it is `u64`
+      Node_Type type;
+      type.token.beginning = smalloc(4); // FIX: this leaks memory
+      strcpy(type.token.beginning, "u64");
+      type.token.length = 3;
+      type.type_type = type_primitive_type;
+      type.type_value.type_primitive_value = type.token;
+      return type;
+      break;
+    }
+    case expresion_identifier_type: {
+      Token identifier = expresion.expresion_value.expresion_identifier_value;
+      Symbol symbol = get_symbol_from_token(vars, identifier);
+      return symbol.type;
+      break;
+    }
+    case expresion_unary_operation_type: {
+      Node_Unary_Operation uni_operation = *expresion.expresion_value.expresion_unary_operation_value;
+      Node_Expresion uni_expresion = uni_operation.expresion;
+      Node_Type type;
+      // if the operation is the address operator `&`, the returned type is a pointer to the type of the expression
+      if (uni_operation.operation_type == unary_operation_addr_type) {
+        type.token = NULL_TOKEN;
+        type.type_type = type_ptr_type;
+        type.type_value.type_ptr_value = smalloc(sizeof(*type.type_value.type_ptr_value)); // FIX: this leaks memory
+        *type.type_value.type_ptr_value = get_type_of_expresion(vars, uni_expresion);
+      }
+      // if the operation is the dereference operator `*`, the returned type is type the pointer holds
+      else if (uni_operation.operation_type == unary_operation_deref_type) {
+        type = *get_type_of_expresion(vars, uni_expresion).type_value.type_ptr_value;
+      }
+      else {
+        type = get_type_of_expresion(vars, uni_expresion);
+      }
+      return type;
+      break;
+    }
+    case expresion_binary_operation_type: {
+      Node_Binary_Operation bin_operation = *expresion.expresion_value.expresion_binary_operation_value;
+      Node_Expresion lhs_expr = bin_operation.left_side;
+      Node_Expresion rhs_expr = bin_operation.right_side;
+      Node_Type lhs_type = get_type_of_expresion(vars, lhs_expr);
+      Node_Type rhs_type = get_type_of_expresion(vars, rhs_expr);
+      // if any of the operands is a pointer throw an error
+      if (lhs_type.type_type == type_ptr_type || rhs_type.type_type == type_ptr_type) {
+        error("can not operate with a pointer");
+      }
+      // if the operation is an array access
+      if (bin_operation.operation_type == binary_operation_access_type) {
+        // return the type the array contains
+        return *lhs_type.type_value.type_array_value->primitive_type;
+      }
+      // does not matter if its `lhs_type` or `rhs_type` 
+      return lhs_type;
+      break;
+    }
+    case expresion_array_type: {
+      Node_Type type;
       type.token = NULL_TOKEN;
-      type.type_type = type_ptr_type;
-      type.type_value.type_ptr_value = smalloc(sizeof(*type.type_value.type_ptr_value)); // FIX: this leaks memory
-      *type.type_value.type_ptr_value = get_type_of_expresion(vars, uni_expresion);
+      type.type_type = type_array_type;
+      type.type_value.type_array_value = smalloc(sizeof(*type.type_value.type_array_value));
+      type.type_value.type_array_value->primitive_type = smalloc(sizeof(*type.type_value.type_array_value->primitive_type));
+      *type.type_value.type_array_value->primitive_type = get_type_of_expresion(vars, expresion.expresion_value.expresion_array_value->elements[0]);
+      // FIX: convert the number to token in a more reasonable way
+      type.type_value.type_array_value->elements_count.beginning = smalloc(2);
+      type.type_value.type_array_value->elements_count.length = 2;
+      type.type_value.type_array_value->elements_count.beginning[0] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 10;
+      type.type_value.type_array_value->elements_count.beginning[1] = '0' + expresion.expresion_value.expresion_array_value->elements_count % 10;
+      type.type_value.type_array_value->elements_count.type = Number;
+      return type;
+      break;
     }
-    // if the operation is the dereference operator `*`, the returned type is type the pointer holds
-    else if (uni_operation.operation_type == unary_operation_deref_type) {
-      type = *get_type_of_expresion(vars, uni_expresion).type_value.type_ptr_value;
-    }
-    else {
-      type = get_type_of_expresion(vars, uni_expresion);
-    }
-    return type;
-  }
-  if (expresion.expresion_type == expresion_binary_operation_type) {
-    Node_Binary_Operation bin_operation = *expresion.expresion_value.expresion_binary_operation_value;
-    Node_Expresion lhs_expr = bin_operation.left_side;
-    Node_Expresion rhs_expr = bin_operation.right_side;
-    Node_Type lhs_type = get_type_of_expresion(vars, lhs_expr);
-    Node_Type rhs_type = get_type_of_expresion(vars, rhs_expr);
-    // if any of the operands is a pointer throw an error
-    if (lhs_type.type_type == type_ptr_type || rhs_type.type_type == type_ptr_type) {
-      error("can not operate with a pointer");
-    }
-    // does not matter if its `lhs_type` or `rhs_type` 
-    return lhs_type;
-  }
-  if (expresion.expresion_type == expresion_array_type) {
-    Node_Type type;
-    type.token = NULL_TOKEN;
-    type.type_type = type_array_type;
-    type.type_value.type_array_value = smalloc(sizeof(*type.type_value.type_array_value));
-    type.type_value.type_array_value->primitive_type = smalloc(sizeof(*type.type_value.type_array_value->primitive_type));
-    *type.type_value.type_array_value->primitive_type = get_type_of_expresion(vars, expresion.expresion_value.expresion_array_value->elements[0]);
-    // FIX: convert the number to token in a more reasonable way
-    type.type_value.type_array_value->elements_count.beginning = smalloc(2);
-    type.type_value.type_array_value->elements_count.length = 2;
-    type.type_value.type_array_value->elements_count.beginning[0] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 10;
-    type.type_value.type_array_value->elements_count.beginning[1] = '0' + expresion.expresion_value.expresion_array_value->elements_count % 10;
-    type.type_value.type_array_value->elements_count.type = Number;
-    return type;
-  }
-  if (expresion.expresion_type == expresion_number_type) {
-    // FIX: can not get the type of an integer literal so assume it is `u64`
-    Node_Type type;
-    type.token.beginning = smalloc(4); // FIX: this also leaks memory
-    strcpy(type.token.beginning, "u64");
-    type.token.length = 3;
-    type.type_type = type_primitive_type;
-    type.type_value.type_primitive_value = type.token;
-    return type;
   }
   implementation_error("unkown type of expresion while trying to get its type");
   return (Node_Type) {};
 }
 
 // checkes if the token is in the list of variables
-static bool is_var_in_var_list(const Vars_list vars, const Token variable) {
+static bool is_var_in_var_list(const Symbol_table vars, const Token variable) {
   for (int i = 0; i < vars.scopes_count; i++) {
-    Scope scope = vars.scopes[i];
+    Symbols_scope scope = vars.scopes[i];
     for (int j = 0; j < scope.vars_count; j++) {
       Symbol symbol = scope.vars[j];
       if (compare_str_of_tokens(variable, symbol.value)) {
@@ -153,7 +165,7 @@ static bool is_var_in_var_list(const Vars_list vars, const Token variable) {
 }
 
 // checks if there is some undeclared var in the expresion, if so it throws an error
-static bool is_expresion_valid(const Vars_list scopes, const Node_Expresion expresion) {
+static bool is_expresion_valid(const Symbol_table scopes, const Node_Expresion expresion) {
   if (expresion.expresion_type == expresion_number_type) {
     // does not need to check the number
   }
@@ -164,8 +176,20 @@ static bool is_expresion_valid(const Vars_list scopes, const Node_Expresion expr
     }
   }
   else if (expresion.expresion_type == expresion_binary_operation_type) {
-    is_expresion_valid(scopes, expresion.expresion_value.expresion_binary_operation_value->left_side);
-    is_expresion_valid(scopes, expresion.expresion_value.expresion_binary_operation_value->right_side);
+    Node_Expresion lhs_expr = expresion.expresion_value.expresion_binary_operation_value->left_side;
+    Node_Expresion rhs_expr = expresion.expresion_value.expresion_binary_operation_value->right_side;
+    Node_Binary_Operation bin_operation = *expresion.expresion_value.expresion_binary_operation_value;
+    if (bin_operation.operation_type == binary_operation_access_type) {
+      Node_Type lhs_type = get_type_of_expresion(scopes, lhs_expr);
+      Node_Type rhs_type = get_type_of_expresion(scopes, rhs_expr);
+      // the type for the left side has to be an array and for the right side an 'u64'
+      // TODO: make this condition nicer
+      if (!(lhs_type.type_type == type_array_type && rhs_type.type_type == type_primitive_type && compare_token_to_string(rhs_type.token, "u64"))) {
+        error("can only access an value that has array type, and with an integer index");
+      }
+    }
+    is_expresion_valid(scopes, lhs_expr);
+    is_expresion_valid(scopes, rhs_expr);
   }
   else if (expresion.expresion_type == expresion_unary_operation_type) {
     Node_Unary_Operation uni_operation = *expresion.expresion_value.expresion_unary_operation_value;
@@ -215,15 +239,15 @@ static bool is_expresion_valid(const Vars_list scopes, const Node_Expresion expr
 }
 
 // append a variable to the array of variables in the last scope
-static void append_var_to_var_list(const Symbol variable, Vars_list * scopes) {
-  Scope * last_scope = &scopes->scopes[scopes->scopes_count -1];
+static void append_var_to_var_list(const Symbol variable, Symbol_table * scopes) {
+  Symbols_scope * last_scope = &scopes->scopes[scopes->scopes_count -1];
   last_scope->vars_count++;
   last_scope->vars = srealloc(last_scope->vars, last_scope->vars_count * sizeof(*last_scope->vars));
   last_scope->vars[last_scope->vars_count -1] = variable;
 }
 
 // create a new empty scope and append it to the end of array of scopes
-static void create_scope(Vars_list * scopes) {
+static void create_scope(Symbol_table * scopes) {
   scopes->scopes_count++;
   scopes->scopes = srealloc(scopes->scopes, scopes->scopes_count * sizeof(*scopes->scopes));
   scopes->scopes[scopes->scopes_count -1].vars_count = 0;
@@ -231,8 +255,8 @@ static void create_scope(Vars_list * scopes) {
 }
 
 // create a copy of the scopes and its variables
-static Vars_list copy_vars_list(Vars_list scopes) {
-  Vars_list result;
+static Symbol_table copy_Symbol_table(Symbol_table scopes) {
+  Symbol_table result;
   result.scopes_count = scopes.scopes_count;
   result.scopes = smalloc(scopes.scopes_count * sizeof(*scopes.scopes));
   for (int i = 0; i < scopes.scopes_count; i++) {
@@ -247,7 +271,7 @@ static Vars_list copy_vars_list(Vars_list scopes) {
 }
 
 // free the memory of the scopes
-static void free_vars_list(Vars_list variables) {
+static void free_Symbol_table(Symbol_table variables) {
   for (int i = 0; i < variables.scopes_count; i++ ) {
     free(variables.scopes[i].vars);
   }
@@ -255,7 +279,7 @@ static void free_vars_list(Vars_list variables) {
 }
 
 // check if a statement is valid, if it is not, report it and halt
-void check_statement(Vars_list * variables, const Node_Statement stmt) {
+void check_statement(Symbol_table * variables, const Node_Statement stmt) {
   switch (stmt.statement_type) {
     case var_declaration_type: {
       // check that the expresion in the statement is valid
@@ -309,17 +333,17 @@ void check_statement(Vars_list * variables, const Node_Statement stmt) {
       break;
     }
     case scope_type: {
-      Vars_list scope_vars = copy_vars_list(*variables);
+      Symbol_table scope_vars = copy_Symbol_table(*variables);
       for (int i = 0; i < stmt.statement_value.scope.statements_count; i++) {
         check_statement(&scope_vars, stmt.statement_value.scope.statements_node[i]);
       }
-      free_vars_list(scope_vars);
+      free_Symbol_table(scope_vars);
       break;
     }
     case if_type: {
       Node_Expresion condition = stmt.statement_value.if_node.condition;
       is_expresion_valid(*variables, condition);
-      Vars_list scope_vars = copy_vars_list(*variables);
+      Symbol_table scope_vars = copy_Symbol_table(*variables);
       for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
         check_statement(&scope_vars, stmt.statement_value.if_node.scope.statements_node[i]);
       }
@@ -328,36 +352,34 @@ void check_statement(Vars_list * variables, const Node_Statement stmt) {
           check_statement(&scope_vars, stmt.statement_value.if_node.else_block.statements_node[i]);
         }
       }
-      free_vars_list(scope_vars);
+      free_Symbol_table(scope_vars);
       break;
     }
     case while_type: {
       Node_Expresion condition = stmt.statement_value.while_node.condition;
       is_expresion_valid(*variables, condition);
-      Vars_list scope_vars = copy_vars_list(*variables);
+      Symbol_table scope_vars = copy_Symbol_table(*variables);
       for (int i = 0; i < stmt.statement_value.while_node.scope.statements_count; i++) {
         check_statement(&scope_vars, stmt.statement_value.while_node.scope.statements_node[i]);
       }
-      free_vars_list(scope_vars);
+      free_Symbol_table(scope_vars);
       break;
     }
-    default:
-      implementation_error("generating this statement is not implemented");
   }
 }
 
 // checks if the program follows the grammar rules and the language specifications
 bool is_valid_program(Node_Program program) {
-  Vars_list scopes;
+  Symbol_table scopes;
   scopes.scopes_count = 0;
-  scopes.scopes = malloc(scopes.scopes_count * sizeof(Scope));
+  scopes.scopes = malloc(scopes.scopes_count * sizeof(Symbols_scope));
   create_scope(&scopes); // create the first global scope
   // check each statement correctness
   for (int i = 0; i < program.statements_count; i++) {
     Node_Statement statement = program.statements_node[i];
     check_statement(&scopes, statement);
   }
-  free_vars_list(scopes);
+  free_Symbol_table(scopes);
   return true;
 }
 
