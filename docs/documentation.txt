@@ -10,19 +10,18 @@ Operators:
  The brackets always evaluate first.
  Associativity is always left to right,
  The binary operator precedences are:
-  >		0
-  ==  0
-  <		0
-  +		1
-  -		1
-  %		2
-  *		2
-  /		2
-  ^		3
-  []  5
+  >     0
+  ==    0
+  <     0
+  +     1
+  -     1
+  %     2
+  *     2
+  /     2
+  []    4
  The unary operator precedences are:
-  &   4
-  *   4
+  &   3
+  *   3
 
  Can not operate with a pointer.
  The addition `+`, substraction `-`, multiplication `*` and division `/`
@@ -52,6 +51,8 @@ Variables:
 -Assignment:
  -Syntax:
    var_name = expr;
+   *expr = expr;
+   var_name[expr] = expr;
  The variable must have been declared to assign a value to it.
  The type of the expression must match the type given before to the variable
 

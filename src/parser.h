@@ -1,372 +1,415 @@
 #ifndef PARSER_H_
 #define PARSER_H_
 
+#include <limits.h>
+
 #include "errors.h"
 #include "mlib.h"
 #include "tokenizer.h"
 
-// some near positive infinity number
-#define BIG_NUM 999999
-
-typedef struct Node_Array_type {
-  struct Node_Type * primitive_type;
-  Token elements_count;
-} Node_Array_type;
 
 typedef struct Node_Type {
-  Token token;
-  enum {
-    type_primitive_type,
-    type_ptr_type,
-    type_array_type
-  } type_type;
-  union {
-    Token type_primitive_value;
-    struct Node_Type * type_ptr_value;
-    struct Node_Array_type * type_array_value;
-  } type_value;
-
+	Token token;
+	enum {
+		type_primitive_type,
+		type_ptr_type,
+		type_array_type
+	} type_type;
+	union {
+		Token type_primitive_value;
+		struct Node_Type * type_ptr_value;
+		struct Node_Array_type * type_array_value;
+	} type_value;
 } Node_Type;
 
+typedef struct Node_Array_type {
+	struct Node_Type * primitive_type;
+	Token elements_count;
+} Node_Array_type;
+
 typedef struct Node_Array {
-  int elements_count;
-  // list of all the elements inside the array
-  struct Node_Expresion * elements;
+	int elements_count;
+	struct Node_Expresion * elements;
 } Node_Array;
 
 typedef struct Node_Expresion {
-  enum {
-    expresion_number_type,
-    expresion_identifier_type,
-    expresion_binary_operation_type,
-    expresion_unary_operation_type,
-    expresion_array_type,
-  } expresion_type;
-  union {
-    Token expresion_number_value;
-    Token expresion_identifier_value;
-    struct Node_Binary_Operation * expresion_binary_operation_value;
-    struct Node_Unary_Operation * expresion_unary_operation_value;
-    struct Node_Array * expresion_array_value;
-  } expresion_value;
+	enum {
+		expresion_number_type,
+		expresion_identifier_type,
+		expresion_binary_operation_type,
+		expresion_unary_operation_type,
+		expresion_array_type,
+	} expresion_type;
+	union {
+		Token expresion_number_value;
+		Token expresion_identifier_value;
+		struct Node_Binary_Operation * expresion_binary_operation_value;
+		struct Node_Unary_Operation * expresion_unary_operation_value;
+		struct Node_Array * expresion_array_value;
+	} expresion_value;
 } Node_Expresion;
 
 typedef struct Node_Binary_Operation {
-  Node_Expresion left_side;
-  enum {
-    binary_operation_sum_type,
-    binary_operation_sub_type,
-    binary_operation_mul_type,
-    binary_operation_div_type,
-    binary_operation_mod_type,
-    binary_operation_exp_type,
-    binary_operation_big_type,
-    binary_operation_les_type,
-    binary_operation_equ_type,
-    binary_operation_access_type
-  } operation_type;
-  Node_Expresion right_side;
+	Node_Expresion left_side;
+	enum {
+		binary_operation_sum_type,
+		binary_operation_sub_type,
+		binary_operation_mul_type,
+		binary_operation_div_type,
+		binary_operation_mod_type,
+		binary_operation_big_type,
+		binary_operation_les_type,
+		binary_operation_equ_type,
+		binary_operation_access_type
+	} operation_type;
+	Node_Expresion right_side;
 } Node_Binary_Operation;
 
 typedef struct Node_Unary_Operation {
-  Node_Expresion expresion;
-  enum {
-    unary_operation_addr_type,
-    unary_operation_deref_type
-  } operation_type;
+	Node_Expresion expresion;
+	enum {
+		unary_operation_addr_type,
+		unary_operation_deref_type
+	} operation_type;
 } Node_Unary_Operation;
 
+// TODO: implement the assgn dest in parsing as a general expression and later check that its valid in the checker
+typedef struct Assignment_Dest {
+	enum {
+		assgn_dest_var_name_type,
+		assgn_dest_deref_type,
+		assgn_dest_subscript_type
+	} destination_type;
+	union {
+		Token var_name;
+		Node_Expresion * deref_expresion;
+		struct {
+			Token array_name;
+			Node_Expresion * index_expr;
+		};
+	} destination_value;
+} Assignment_Dest;
+
 typedef struct Node_Exit {
-  Node_Expresion exit_code;
+	Node_Expresion exit_code;
 } Node_Exit;
 
 typedef struct Node_Print {
-  Node_Expresion chr;
+	Node_Expresion chr;
 } Node_Print;
 
 typedef struct Node_Var_declaration {
-  Token var_name;
-  Node_Type type;
-  Node_Expresion value;
+	Token var_name;
+	Node_Type type;
+	Node_Expresion value;
 } Node_Var_declaration;
 
 typedef struct Node_Var_assignment {
-  Token var_name;
-  Node_Expresion value;
+	Assignment_Dest destination;
+	Node_Expresion value;
 } Node_Var_assignment;
 
 
 typedef struct Node_Scope {
-  struct Node_Statement * statements_node;
-  int statements_count;
+	struct Node_Statement * statements_node;
+	int statements_count;
 } Node_Scope;
 
 typedef struct Node_If {
-  Node_Expresion condition;
-  Node_Scope scope;
-  bool has_else_block;
-  Node_Scope else_block;
+	Node_Expresion condition;
+	Node_Scope scope;
+	bool has_else_block;
+	Node_Scope else_block;
 } Node_If;
 
 typedef struct Node_While {
-  Node_Expresion condition;
-  Node_Scope scope;
+	Node_Expresion condition;
+	Node_Scope scope;
 } Node_While;
 
 typedef struct Node_Statement {
-  union {
-    Node_Var_declaration var_declaration;
-    Node_Exit exit_node;
-    Node_Var_assignment var_assignment;
-    Node_Scope scope;
-    Node_If if_node;
-    Node_Print print;
-    Node_While while_node;
-  } statement_value;
-  enum {
-    var_declaration_type,
-    exit_node_type,
-    var_assignment_type,
-    scope_type,
-    if_type,
-    print_type,
-    while_type
-  } statement_type;
+	union {
+		Node_Var_declaration var_declaration;
+		Node_Exit exit_node;
+		Node_Var_assignment var_assignment;
+		Node_Scope scope;
+		Node_If if_node;
+		Node_Print print;
+		Node_While while_node;
+	} statement_value;
+	enum {
+		var_declaration_type,
+		exit_node_type,
+		var_assignment_type,
+		scope_type,
+		if_type,
+		print_type,
+		while_type
+	} statement_type;
 } Node_Statement;
 
 typedef struct Node_Program {
-  Node_Statement * statements_node;
-  int statements_count;
+	Node_Statement * statements_node;
+	int statements_count;
 } Node_Program;
 
 
 #ifdef DEBUG
 
 static char * D_uni_op_type_lookup[] = {
-  [unary_operation_addr_type] = "&",
-  [unary_operation_deref_type] = "*"
+	[unary_operation_addr_type] = "&",
+	[unary_operation_deref_type] = "*"
 };
 char * enum_to_uni_op_type(int op_type) {
-  return D_uni_op_type_lookup[op_type];
+	return D_uni_op_type_lookup[op_type];
 }
 
 static char * D_bin_op_type_lookup[] = {
-  [binary_operation_sum_type] = "+",
-  [binary_operation_sub_type] = "-",
-  [binary_operation_mul_type] = "*",
-  [binary_operation_div_type] = "/",
-  [binary_operation_mod_type] = "%",
-  [binary_operation_exp_type] = "^",
-  [binary_operation_big_type] = ">",
-  [binary_operation_les_type] = "<",
-  [binary_operation_equ_type] = "==",
-  [binary_operation_access_type] = "[]"
+	[binary_operation_sum_type] = "+",
+	[binary_operation_sub_type] = "-",
+	[binary_operation_mul_type] = "*",
+	[binary_operation_div_type] = "/",
+	[binary_operation_mod_type] = "%",
+	[binary_operation_big_type] = ">",
+	[binary_operation_les_type] = "<",
+	[binary_operation_equ_type] = "==",
+	[binary_operation_access_type] = "[]"
 };
 char * enum_to_bin_op_type(int op_type) {
-  return D_bin_op_type_lookup[op_type];
+	return D_bin_op_type_lookup[op_type];
+}
+
+void D_print_expresion(Node_Expresion expresion, int depth);
+
+void D_print_assgn_destination(Assignment_Dest assgn_dest, int depth) {
+	switch (assgn_dest.destination_type) {
+		case assgn_dest_var_name_type:
+			printf("%*sVar name assign:\n", depth, "");
+			depth++;
+			printf("%*s", depth+1, "");
+			D_print_token(assgn_dest.destination_value.var_name);
+			break;
+
+		case assgn_dest_deref_type:
+			printf("%*sVar deref assign:\n", depth, "");
+			depth++;
+			printf("%*s", depth+1, "");
+			D_print_expresion(*assgn_dest.destination_value.deref_expresion, depth+1);
+			break;
+
+		case assgn_dest_subscript_type:
+			printf("%*sVar subscript assign:\n", depth, "");
+			depth++;
+			printf("%*sArray name:\n", depth, "");
+			printf("%*s", depth+1, "");
+			D_print_token(assgn_dest.destination_value.array_name);
+			printf("%*sIndex:\n", depth, "");
+			D_print_expresion(*assgn_dest.destination_value.index_expr, depth+1);
+			break;
+	}
 }
 
 void D_print_expresion(Node_Expresion expresion, int depth) {
-  switch (expresion.expresion_type) {
-    case expresion_number_type:
-      printf("%*sNode expression number:\n", depth, "");
-      depth++;
+	switch (expresion.expresion_type) {
+		case expresion_number_type:
+			printf("%*sNode expression number:\n", depth, "");
+			depth++;
 
-      printf("%*s", depth, "");
-      D_print_token(expresion.expresion_value.expresion_number_value);
-      break;
+			printf("%*s", depth, "");
+			D_print_token(expresion.expresion_value.expresion_number_value);
+			break;
 
-    case expresion_identifier_type:
-      printf("%*sNode expression identifier:\n", depth, "");
-      depth++;
+		case expresion_identifier_type:
+			printf("%*sNode expression identifier:\n", depth, "");
+			depth++;
 
-      printf("%*s", depth, "");
-      D_print_token(expresion.expresion_value.expresion_identifier_value);
-      break;
+			printf("%*s", depth, "");
+			D_print_token(expresion.expresion_value.expresion_identifier_value);
+			break;
 
-    case expresion_binary_operation_type:
-      printf("%*sNode binary operation:\n", depth, "");
-      depth++;
+		case expresion_binary_operation_type:
+			printf("%*sNode binary operation:\n", depth, "");
+			depth++;
 
-      printf("%*s%s\n", depth, "", enum_to_bin_op_type((int)expresion.expresion_value.expresion_binary_operation_value->operation_type));
-      depth++;
+			printf("%*s%s\n", depth, "", enum_to_bin_op_type((int)expresion.expresion_value.expresion_binary_operation_value->operation_type));
+			depth++;
 
-      D_print_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side, depth);
+			D_print_expresion(expresion.expresion_value.expresion_binary_operation_value->left_side, depth);
 
-      D_print_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side, depth);
-      break;
+			D_print_expresion(expresion.expresion_value.expresion_binary_operation_value->right_side, depth);
+			break;
 
-    case expresion_unary_operation_type:
-      printf("%*sNode unary operation:\n", depth, "");
-      depth++;
+		case expresion_unary_operation_type:
+			printf("%*sNode unary operation:\n", depth, "");
+			depth++;
 
-      printf("%*s%s\n", depth, "", enum_to_uni_op_type((int)expresion.expresion_value.expresion_unary_operation_value->operation_type));
+			printf("%*s%s\n", depth, "", enum_to_uni_op_type((int)expresion.expresion_value.expresion_unary_operation_value->operation_type));
 
-      D_print_expresion(expresion.expresion_value.expresion_unary_operation_value->expresion, depth);
-      break;
+			D_print_expresion(expresion.expresion_value.expresion_unary_operation_value->expresion, depth);
+			break;
 
-    case expresion_array_type:
-      printf("%*sNode array:\n", depth, "");
-      depth++;
+		case expresion_array_type:
+			printf("%*sNode array:\n", depth, "");
+			depth++;
 
-      printf("%*selements count: %d\n", depth, "", expresion.expresion_value.expresion_array_value->elements_count);
+			printf("%*selements count: %d\n", depth, "", expresion.expresion_value.expresion_array_value->elements_count);
 
-      for (int i = 0; i < expresion.expresion_value.expresion_array_value->elements_count; i++) {
-        printf("%*selement idx: %d\n", depth, "", i);
-        D_print_expresion(expresion.expresion_value.expresion_array_value->elements[i], depth+1);
-      }
-      break;
+			for (int i = 0; i < expresion.expresion_value.expresion_array_value->elements_count; i++) {
+				printf("%*selement idx: %d\n", depth, "", i);
+				D_print_expresion(expresion.expresion_value.expresion_array_value->elements[i], depth+1);
+			}
+			break;
 
-  }
+	}
 }
 
 void D_print_type(Node_Type type, int depth) {
-  if (type.type_type == type_primitive_type) {
-    printf("%*sNode type primitive:\n", depth, "");
-    depth++;
+	switch (type.type_type) {
+		case type_primitive_type:
+			printf("%*sNode type primitive:\n", depth, "");
+			depth++;
 
-    printf("%*s", depth, "");
-    D_print_token(type.type_value.type_primitive_value);
-  }
-  else if (type.type_type == type_ptr_type) {
-    printf("%*sNode type ptr:\n", depth, "");
-    depth++;
+			printf("%*s", depth, "");
+			D_print_token(type.type_value.type_primitive_value);
+			break;
 
-    printf("%*sptr\n", depth, "");
-    depth++;
+		case type_ptr_type:
+			printf("%*sNode type ptr:\n", depth, "");
+			depth++;
 
-    D_print_type(*type.type_value.type_ptr_value, depth);
-  }
-  else if (type.type_type == type_array_type) {
-    printf("%*sNode type array:\n", depth, "");
-    depth++;
+			printf("%*sptr\n", depth, "");
+			depth++;
 
-    printf("%*selements count: ", depth, "");
-    D_print_token(type.type_value.type_array_value->elements_count);
+			D_print_type(*type.type_value.type_ptr_value, depth);
+			break;
 
-    printf("%*selement type:\n", depth, "");
-    depth++;
-    D_print_type(*type.type_value.type_array_value->primitive_type, depth);
-  }
-  else {
-    implementation_error("in debug function print type unkown type of type");
-  }
+		case type_array_type:
+			printf("%*sNode type array:\n", depth, "");
+			depth++;
+
+			printf("%*selements count: ", depth, "");
+			D_print_token(type.type_value.type_array_value->elements_count);
+
+			printf("%*selement type:\n", depth, "");
+			depth++;
+			D_print_type(*type.type_value.type_array_value->primitive_type, depth);
+			break;
+	}
 }
 
 void D_print_statement(Node_Statement stmt, int depth) {
-  switch (stmt.statement_type) {
-    case var_declaration_type:
-      Node_Var_declaration var_decl = stmt.statement_value.var_declaration;
-      printf("%*sNode var decl:\n", depth, "");
-      depth++;
+	switch (stmt.statement_type) {
+		case var_declaration_type:
+			Node_Var_declaration var_decl = stmt.statement_value.var_declaration;
+			printf("%*sNode var decl:\n", depth, "");
+			depth++;
 
-      printf("%*sNode var decl name:\n", depth, "");
-      printf("%*s", depth+1, "");
-      D_print_token(var_decl.var_name);
+			printf("%*sNode var decl name:\n", depth, "");
+			printf("%*s", depth+1, "");
+			D_print_token(var_decl.var_name);
 
-      printf("%*sNode var decl type:\n", depth, "");
-      D_print_type(var_decl.type, depth+1);
+			printf("%*sNode var decl type:\n", depth, "");
+			D_print_type(var_decl.type, depth+1);
 
-      printf("%*sNode var decl expr:\n", depth, "");
-      D_print_expresion(var_decl.value, depth+1);
-      break;
+			printf("%*sNode var decl expr:\n", depth, "");
+			D_print_expresion(var_decl.value, depth+1);
+			break;
 
-    case exit_node_type:
-      Node_Exit exit_node = stmt.statement_value.exit_node;
-      printf("%*sNode exit:\n", depth, "");
-      depth++;
+		case exit_node_type:
+			Node_Exit exit_node = stmt.statement_value.exit_node;
+			printf("%*sNode exit:\n", depth, "");
+			depth++;
 
-      printf("%*sNode exit expr:\n", depth, "");
-      D_print_expresion(exit_node.exit_code, depth+1);
-      break;
+			printf("%*sNode exit expr:\n", depth, "");
+			D_print_expresion(exit_node.exit_code, depth+1);
+			break;
 
-    case print_type:
-      Node_Print print_node = stmt.statement_value.print;
-      printf("%*sNode print:\n", depth, "");
-      depth++;
+		case print_type:
+			Node_Print print_node = stmt.statement_value.print;
+			printf("%*sNode print:\n", depth, "");
+			depth++;
 
-      printf("%*sNode print expr:\n", depth, "");
-      D_print_expresion(print_node.chr, depth+1);
-      break;
+			printf("%*sNode print expr:\n", depth, "");
+			D_print_expresion(print_node.chr, depth+1);
+			break;
 
-    case var_assignment_type:
-      Node_Var_assignment var_assign = stmt.statement_value.var_assignment;
-      printf("%*sNode var assign:\n", depth, "");
-      depth++;
+		case var_assignment_type:
+			Node_Var_assignment var_assign = stmt.statement_value.var_assignment;
+			printf("%*sNode var assign:\n", depth, "");
+			depth++;
 
-      printf("%*sNode var assign name:\n", depth, "");
-      printf("%*s", depth+1, "");
-      D_print_token(var_assign.var_name);
+			printf("%*sNode var assign destination:\n", depth, "");
+			D_print_assgn_destination(var_assign.destination, depth+1);
 
-      printf("%*sNode var assign expr:\n", depth, "");
-      D_print_expresion(var_assign.value, depth+1);
-      break;
+			printf("%*sNode var assign expr:\n", depth, "");
+			D_print_expresion(var_assign.value, depth+1);
+			break;
 
-    case scope_type:
-      Node_Scope scope = stmt.statement_value.scope;
-      printf("%*sNode scope:\n", depth, "");
-      depth++;
-      printf("%*sStatements count: %d\n", depth, "", scope.statements_count);
+		case scope_type:
+			Node_Scope scope = stmt.statement_value.scope;
+			printf("%*sNode scope:\n", depth, "");
+			depth++;
+			printf("%*sStatements count: %d\n", depth, "", scope.statements_count);
 
-      for (int i = 0; i < scope.statements_count; i++) {
-        D_print_statement(scope.statements_node[i], depth);
-        putchar('\n');
-      }
-      break;
+			for (int i = 0; i < scope.statements_count; i++) {
+				D_print_statement(scope.statements_node[i], depth);
+				putchar('\n');
+			}
+			break;
 
-    case if_type:
-      Node_If if_node = stmt.statement_value.if_node;
-      printf("%*sNode if:\n", depth, "");
-      depth++;
+		case if_type:
+			Node_If if_node = stmt.statement_value.if_node;
+			printf("%*sNode if:\n", depth, "");
+			depth++;
 
-      printf("%*sNode if condition:\n", depth, "");
-      D_print_expresion(if_node.condition, depth+1);
+			printf("%*sNode if condition:\n", depth, "");
+			D_print_expresion(if_node.condition, depth+1);
 
-      printf("%*sNode if scope:\n", depth, "");
+			printf("%*sNode if scope:\n", depth, "");
 
-      printf("%*sStatements count: %d\n", depth+1, "", if_node.scope.statements_count);
-      for (int i = 0; i < if_node.scope.statements_count; i++) {
-        D_print_statement(if_node.scope.statements_node[i], depth+1);
-        putchar('\n');
-      }
-      if (if_node.has_else_block) {
-        printf("%*sNode else scope:\n", depth, "");
+			printf("%*sStatements count: %d\n", depth+1, "", if_node.scope.statements_count);
+			for (int i = 0; i < if_node.scope.statements_count; i++) {
+				D_print_statement(if_node.scope.statements_node[i], depth+1);
+				putchar('\n');
+			}
+			if (if_node.has_else_block) {
+				printf("%*sNode else scope:\n", depth, "");
 
-        printf("%*sStatements count: %d\n", depth+1, "", if_node.else_block.statements_count);
-        for (int i = 0; i < if_node.else_block.statements_count; i++) {
-          D_print_statement(if_node.else_block.statements_node[i], depth+1);
-          putchar('\n');
-        }
-      }
-      break;
+				printf("%*sStatements count: %d\n", depth+1, "", if_node.else_block.statements_count);
+				for (int i = 0; i < if_node.else_block.statements_count; i++) {
+					D_print_statement(if_node.else_block.statements_node[i], depth+1);
+					putchar('\n');
+				}
+			}
+			break;
 
-    case while_type:
-      Node_While while_node = stmt.statement_value.while_node;
-      printf("%*sNode while:\n", depth, "");
-      depth++;
+		case while_type:
+			Node_While while_node = stmt.statement_value.while_node;
+			printf("%*sNode while:\n", depth, "");
+			depth++;
 
-      printf("%*sNode while condition:\n", depth, "");
-      D_print_expresion(while_node.condition, depth+1);
+			printf("%*sNode while condition:\n", depth, "");
+			D_print_expresion(while_node.condition, depth+1);
 
-      printf("%*sNode while scope:\n", depth, "");
-      depth++;
-      printf("%*sStatements count: %d\n", depth, "", while_node.scope.statements_count);
+			printf("%*sNode while scope:\n", depth, "");
+			depth++;
+			printf("%*sStatements count: %d\n", depth, "", while_node.scope.statements_count);
 
-      for (int i = 0; i < while_node.scope.statements_count; i++) {
-        D_print_statement(while_node.scope.statements_node[i], depth);
-        putchar('\n');
-      }
-      break;
-  }
+			for (int i = 0; i < while_node.scope.statements_count; i++) {
+				D_print_statement(while_node.scope.statements_node[i], depth);
+				putchar('\n');
+			}
+			break;
+	}
 }
 
 void D_print_syntax_tree(Node_Program tree, int depth) {
-  printf("Node program:\n");
-  depth++;
-  for (int i = 0; i < tree.statements_count; i++) {
-    D_print_statement(tree.statements_node[i], depth);
-    putchar('\n');
-  }
+	printf("Node program:\n");
+	depth++;
+	for (int i = 0; i < tree.statements_count; i++) {
+		D_print_statement(tree.statements_node[i], depth);
+		putchar('\n');
+	}
 }
 #endif
 
@@ -377,446 +420,469 @@ Node_Scope parse_scope(const Token * tokens, const int tokens_count);
 
 // convert the string of a binary operation token into a enum that is a more manageable form
 static int get_binary_operation_type(const Token operation) {
-  int type;
-  if (compare_token_to_string(operation, "+")) {
-    type = binary_operation_sum_type;
-  }
-  else if (compare_token_to_string(operation, "-")) {
-    type = binary_operation_sub_type;
-  }
-  else if (compare_token_to_string(operation, "*")) {
-    type = binary_operation_mul_type;
-  }
-  else if (compare_token_to_string(operation, "/")) {
-    type = binary_operation_div_type;
-  }
-  else if (compare_token_to_string(operation, "%")) {
-    type = binary_operation_mod_type;
-  }
-  else if (compare_token_to_string(operation, "^")) {
-    type = binary_operation_exp_type;
-  }
-  else if (compare_token_to_string(operation, ">")) {
-    type = binary_operation_big_type;
-  }
-  else if (compare_token_to_string(operation, "<")) {
-    type = binary_operation_les_type;
-  }
-  else if (compare_token_to_string(operation, "==")) {
-    type = binary_operation_equ_type;
-  }
-  else {
-    errorf("Line:%d, column:%d.  Error: unkown binary operation in expresion\n", operation.line_number, operation.column_number);
-  }
-  return type;
+	int type;
+	if (compare_token_to_string(operation, "+")) {
+		type = binary_operation_sum_type;
+	}
+	else if (compare_token_to_string(operation, "-")) {
+		type = binary_operation_sub_type;
+	}
+	else if (compare_token_to_string(operation, "*")) {
+		type = binary_operation_mul_type;
+	}
+	else if (compare_token_to_string(operation, "/")) {
+		type = binary_operation_div_type;
+	}
+	else if (compare_token_to_string(operation, "%")) {
+		type = binary_operation_mod_type;
+	}
+	else if (compare_token_to_string(operation, ">")) {
+		type = binary_operation_big_type;
+	}
+	else if (compare_token_to_string(operation, "<")) {
+		type = binary_operation_les_type;
+	}
+	else if (compare_token_to_string(operation, "==")) {
+		type = binary_operation_equ_type;
+	}
+	else {
+		errorf("Line:%d, column:%d.  Error: unkown binary operation in expresion\n", operation.line_number, operation.column_number);
+	}
+	return type;
 }
 
 // convert the string of a unary operation token into a enum that is a more manageable form
 static int get_unary_operation_type(Token operation) {
-  int type;
-  if (compare_token_to_string(operation, "&")) {
-    type = unary_operation_addr_type;
-  }
-  else if (compare_token_to_string(operation, "*")) {
-    type = unary_operation_deref_type;
-  }
-  else {
-    errorf("Line:%d, column:%d.  Error: unkown unary operation in expresion\n", operation.line_number, operation.column_number);
-  }
-  return type;
+	int type;
+	if (compare_token_to_string(operation, "&")) {
+		type = unary_operation_addr_type;
+	}
+	else if (compare_token_to_string(operation, "*")) {
+		type = unary_operation_deref_type;
+	}
+	else {
+		errorf("Line:%d, column:%d.  Error: unkown unary operation in expresion\n", operation.line_number, operation.column_number);
+	}
+	return type;
 }
 
 // get the precedence of a binary operator acording to the documentation
 // the closest the value to 0 the less the precedence is
 static int get_binary_operation_precedence(Token operation) {
-  const char * opers[] = {">", "==", "<", "+", "-", "%", "*", "/", "^"};
-  const int precedes[] = { 0 ,  0 ,   0 ,  1 ,  1 ,  2 ,  2 ,  2 ,  3 };
-  // find the idx of the matching string and return the corresponding precedence
-  for (unsigned i = 0; i < sizeof(opers)/sizeof(*opers); i++) {
-    if (compare_token_to_string(operation, opers[i])) {
-      return precedes[i];
-    }
-  }
-  errorf("Line:%d, column:%d.  Error: unkown precedence of binary operation\n", operation.line_number, operation.column_number);
-  // unreachable
-  return -1;
+	const char * opers[] = {">", "==", "<", "+", "-", "%", "*", "/"};
+	const int precedes[] = { 0 ,  0 ,   0 ,  1 ,  1 ,  2 ,  2 ,  2 };
+	// find the idx of the matching string and return the corresponding precedence
+	for (unsigned i = 0; i < sizeof(opers)/sizeof(*opers); i++) {
+		if (compare_token_to_string(operation, opers[i])) {
+			return precedes[i];
+		}
+	}
+	errorf("Line:%d, column:%d.  Error: unkown precedence of binary operation\n", operation.line_number, operation.column_number);
+	// unreachable
+	return -1;
 }
 
 // get the precedence of an unary operator acording to the documentation
 // the closest the value to 0 the less the precedence is
 static int get_unary_operation_precedence(Token operation) {
-  const char * opers[] = {"&", "*"};
-  const int precedes[] = { 4 ,  4 };
-  // find the idx of the matching string and return the corresponding precedence
-  for (unsigned i = 0; i < sizeof(opers)/sizeof(*opers); i++) {
-    if (compare_token_to_string(operation, opers[i])) {
-      return precedes[i];
-    }
-  }
-  errorf("Line:%d, column:%d.  Error: unkown precedence of unary operation\n", operation.line_number, operation.column_number);
-  // unreachable
-  return -1;
+	const char * opers[] = {"&", "*"};
+	const int precedes[] = { 3 ,  3 };
+	// find the idx of the matching string and return the corresponding precedence
+	for (unsigned i = 0; i < sizeof(opers)/sizeof(*opers); i++) {
+		if (compare_token_to_string(operation, opers[i])) {
+			return precedes[i];
+		}
+	}
+	errorf("Line:%d, column:%d.  Error: unkown precedence of unary operation\n", operation.line_number, operation.column_number);
+	// unreachable
+	return -1;
 }
 
 
 // 'expr' must be the address of the first opening bracket in the expression
 // returns the offset off the matching closing bracket,
 //   if it couldnt find it prints an error an exits
-static int offset_of_match_bracket(const Token * expr, const int exprsz) {
-  if (expr->type != Bracket || *expr->beginning != '(') {
-    implementation_error("beginning of bracket expr is not open bracket");
-  }
+static int offset_of_match_bracket(const Token * expr, const int expr_sz) {
+	if (expr->type != Bracket || *expr->beginning != '(') {
+		implementation_error("beginning of bracket expr is not open bracket");
+	}
 
-  int depth = 1;
-  int offset = 1;
-  while (depth != 0) {
-    if (offset >= exprsz) {
-      if (offset > 0) {
-        errorf("Line:%d, column:%d.  Error: expected a closing bracket\n", expr->line_number, expr->column_number);
-      } else if (offset < 0) {
-        errorf("Line:%d, column:%d.  Error: expected an opening bracket\n", expr->line_number, expr->column_number);
-      }
-    }
-    if (expr[offset].type == Bracket) {
-      if (expr[offset].beginning[0] == '(') {
-        depth++;
-      }
-      else if (expr[offset].beginning[0] == ')') {
-        depth--;
-      }
-      else {
-        implementation_error("symbol is of type Bracket but is not ( or )");
-      }
-    }
-    offset++;
-  }
-  return offset -1;
+	int depth = 1;
+	int offset = 1;
+	while (depth != 0) {
+		if (offset >= expr_sz) {
+			if (offset > 0) {
+				errorf("Line:%d, column:%d.  Error: expected a closing bracket\n", expr->line_number, expr->column_number);
+			} else if (offset < 0) {
+				errorf("Line:%d, column:%d.  Error: expected an opening bracket\n", expr->line_number, expr->column_number);
+			}
+		}
+		if (expr[offset].type == Bracket) {
+			if (expr[offset].beginning[0] == '(') {
+				depth++;
+			}
+			else if (expr[offset].beginning[0] == ')') {
+				depth--;
+			}
+			else {
+				implementation_error("symbol is of type Bracket but is not ( or )");
+			}
+		}
+		offset++;
+	}
+	return offset -1;
 }
 
 // 'expr' must be the address of the first opening square bracket in the expression
 // returns the offset off the matching closing square bracket,
 //   if it couldnt find it prints an error an exits
 static int offset_of_match_square_bracket(const Token * expr, const int exprsz) {
-  if (expr->type != Square_bracket || *expr->beginning != '[') {
-    implementation_error("beginning of bracket expr is not open bracket");
-  }
+	if (expr->type != Square_bracket || *expr->beginning != '[') {
+		implementation_error("beginning of bracket expr is not open bracket");
+	}
 
-  int depth = 1;
-  int offset = 1;
-  while (depth != 0) {
-    if (offset >= exprsz) {
-      if (offset > 0) {
-        errorf("Line:%d, column:%d.  Error: expected a closing square bracket\n", expr->line_number, expr->column_number);
-      } else if (offset < 0) {
-        errorf("Line:%d, column:%d.  Error: expected an opening square bracket\n", expr->line_number, expr->column_number);
-      }
-    }
-    if (expr[offset].type == Square_bracket) {
-      if (expr[offset].beginning[0] == '[') {
-        depth++;
-      }
-      else if (expr[offset].beginning[0] == ']') {
-        depth--;
-      }
-      else {
-        implementation_error("symbol is of type Square_bracket but is not [ or ]");
-      }
-    }
-    offset++;
-  }
-  return offset -1;
+	int depth = 1;
+	int offset = 1;
+	while (depth != 0) {
+		if (offset >= exprsz) {
+			if (offset > 0) {
+				errorf("Line:%d, column:%d.  Error: expected a closing square bracket\n", expr->line_number, expr->column_number);
+			} else if (offset < 0) {
+				errorf("Line:%d, column:%d.  Error: expected an opening square bracket\n", expr->line_number, expr->column_number);
+			}
+		}
+		if (expr[offset].type == Square_bracket) {
+			if (expr[offset].beginning[0] == '[') {
+				depth++;
+			}
+			else if (expr[offset].beginning[0] == ']') {
+				depth--;
+			}
+			else {
+				implementation_error("symbol is of type Square_bracket but is not [ or ]");
+			}
+		}
+		offset++;
+	}
+	return offset -1;
 }
 
 
 // parses expresion recursively
 Node_Expresion parse_expresion(const Token * expresion_beginning, const int size) {
-  Node_Expresion result;
-  if (size == 0) {
-    errorf("Line:%d, column:%d.  Error: expression must not be empty\n", expresion_beginning->line_number, expresion_beginning->column_number);
-  }
-  else if (size == 1) {
-    // set the type of the expresion
-    if (expresion_beginning->type == Number) {
-      result.expresion_type = expresion_number_type;
-      result.expresion_value.expresion_number_value = *expresion_beginning;
-    }
-    else if (expresion_beginning->type == Identifier) {
-      result.expresion_type = expresion_identifier_type;
-      result.expresion_value.expresion_identifier_value = *expresion_beginning;
-    }
-    else {
-      errorf("Line:%d, column:%d.  Error: unexpected type of token in expresion\n", expresion_beginning->line_number, expresion_beginning->column_number);
-    }
-  }
-  else {
-    if (expresion_beginning[0].type == Bracket && expresion_beginning[0].beginning[0] == '(' &&
-        offset_of_match_bracket(expresion_beginning, size) == size -1) {
-      result = parse_expresion(&expresion_beginning[1], size -2); // substract to skip the '(' and the ending ')'
-      return result;
-    }
-    if (expresion_beginning[0].type == Square_bracket && expresion_beginning[0].beginning[0] == '[' &&
-        offset_of_match_square_bracket(expresion_beginning, size) == size -1) {
-      result.expresion_type = expresion_array_type;
-      result.expresion_value.expresion_array_value = smalloc(sizeof(*result.expresion_value.expresion_array_value));
-      int elements_count = 0;
-      result.expresion_value.expresion_array_value->elements = smalloc(sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
-      int expr_beginning_idx = 1;
-      for (int i = 1; i < size -1; i++) { // start after the '[' and end before the ending ']';
-        // if it finds a square bracket skip it
-        if (expresion_beginning[i].type == Square_bracket && expresion_beginning[i].beginning[0] == '[') {
-          i += offset_of_match_square_bracket(&expresion_beginning[i], size -2);
-        }
-        // if it finds a comma parse the accummulated expresion and start accumulating another one
-        if (expresion_beginning[i].type == Comma) {
-          elements_count += 1;
-          result.expresion_value.expresion_array_value->elements = srealloc(result.expresion_value.expresion_array_value->elements, sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
-          result.expresion_value.expresion_array_value->elements[elements_count -1] = parse_expresion(&expresion_beginning[expr_beginning_idx], i - expr_beginning_idx);
-          //i++;
-          expr_beginning_idx = i +1;
-        }
-      }
-      // if there is are tokens left after the last expresion, also parse them and add them to the list
-      if (expr_beginning_idx != size-1) {
-        elements_count += 1;
-        result.expresion_value.expresion_array_value->elements = srealloc(result.expresion_value.expresion_array_value->elements, sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
-        result.expresion_value.expresion_array_value->elements[elements_count -1] = parse_expresion(&expresion_beginning[expr_beginning_idx], (size-1) - expr_beginning_idx);
-      }
-      result.expresion_value.expresion_array_value->elements_count = elements_count;
-      return result;
-    }
-    Token operation;
-    int min_oper_preced = BIG_NUM;
-    // if the operation to parse is an array access
-    bool is_operation_access = false;
-    int array_beginning;
-    int array_size;
-    int index_beginning;
-    int index_size;
-    // if the operation to parse is binary
-    bool is_operation_bin = false;
-    int left_side_beginning = 0;
-    int left_side_size;
-    int right_side_beginning;
-    int right_side_size;
-    // if the operation to parse is unary
-    bool is_operation_uni = false;
-    int uni_expresion_beginning;
-    int uni_expresion_size;
-    // indicates if the last token was an operation, it begins being true. used for distinguishing binary and unary operations
-    bool was_last_op_or_null = true;
-    // find the beginning and size of the left and right side of the expresion
-    int i;
-    for (i = 0; i < size; i++) {
-      // if it finds a bracket skip it
-      if (expresion_beginning[i].type == Bracket && expresion_beginning[i].beginning[0] == '(') {
-        i += offset_of_match_bracket(&expresion_beginning[i], size);
-      }
-      // if it finds a square bracket skip it
-      if (expresion_beginning[i].type == Square_bracket && expresion_beginning[i].beginning[0] == '[') {
-        // detect array access operation
-        // it has lower precedence than binary and unary operation
-        if (!was_last_op_or_null && !is_operation_bin && !is_operation_uni) {
-          is_operation_access = true;
-          array_beginning = left_side_beginning;
-          array_size = i - array_beginning;
-          index_beginning = i + 1;
-          index_size = offset_of_match_square_bracket(&expresion_beginning[i], size) -1; // substract 1 to skip the ']'
-        }
-        i += offset_of_match_square_bracket(&expresion_beginning[i], size);
-      }
-      // find the operation with the lowest precedence
-      if (expresion_beginning[i].type == Operation) {
-        if (was_last_op_or_null && !is_operation_bin && !is_operation_uni) {
-          // found a unary operation
-          is_operation_uni = true;
-          min_oper_preced = get_unary_operation_precedence(expresion_beginning[i]);
-          uni_expresion_beginning = i + 1;
-          operation = expresion_beginning[i];
-        }
-        else if (!was_last_op_or_null && get_binary_operation_precedence(expresion_beginning[i]) <= min_oper_preced) {
-          is_operation_bin = true;
-          is_operation_uni = false;
-          is_operation_access = false;
-          min_oper_preced = get_binary_operation_precedence(expresion_beginning[i]);
-          left_side_size = i;
-          operation = expresion_beginning[i];
-          right_side_beginning = i + 1;
-        }
-        was_last_op_or_null = true;
-      }
-      else {
-        was_last_op_or_null = false;
-      }
-    }
-    //printf("%d\n", is_operation_access);
-    if (is_operation_bin || is_operation_access) {
-      int enum_op_type;
-      if (is_operation_access) {
-        enum_op_type = binary_operation_access_type;
-        left_side_beginning = array_beginning;
-        left_side_size = array_size;
-        right_side_beginning = index_beginning;
-        right_side_size = index_size;
-      } else {
-        enum_op_type = get_binary_operation_type(operation);
-        right_side_size = i - right_side_beginning;
-      }
-      // create a new node and parse each side of the expresion
-      Node_Binary_Operation * bin_operation = smalloc(sizeof(Node_Binary_Operation));
-      // parse each side of the binary expresion recursively
-      bin_operation->left_side = parse_expresion(&expresion_beginning[left_side_beginning], left_side_size);
-      bin_operation->operation_type = enum_op_type;
-      bin_operation->right_side = parse_expresion(&expresion_beginning[right_side_beginning], right_side_size);
+	Node_Expresion result;
+	if (size == 0) {
+		errorf("Line:%d, column:%d.  Error: expression must not be empty\n", expresion_beginning->line_number, expresion_beginning->column_number);
+	}
+	else if (size == 1) {
+		// set the type of the expresion
+		if (expresion_beginning->type == Number) {
+			result.expresion_type = expresion_number_type;
+			result.expresion_value.expresion_number_value = *expresion_beginning;
+		}
+		else if (expresion_beginning->type == Identifier) {
+			result.expresion_type = expresion_identifier_type;
+			result.expresion_value.expresion_identifier_value = *expresion_beginning;
+		}
+		else {
+			errorf("Line:%d, column:%d.  Error: unexpected type of token in expresion\n", expresion_beginning->line_number, expresion_beginning->column_number);
+		}
+	}
+	else {
+		if (expresion_beginning[0].type == Bracket && expresion_beginning[0].beginning[0] == '(' &&
+				offset_of_match_bracket(expresion_beginning, size) == size -1) {
+			result = parse_expresion(&expresion_beginning[1], size -2); // substract to skip the '(' and the ending ')'
+			return result;
+		}
+		if (expresion_beginning[0].type == Square_bracket && expresion_beginning[0].beginning[0] == '[' &&
+				offset_of_match_square_bracket(expresion_beginning, size) == size -1) {
+			result.expresion_type = expresion_array_type;
+			result.expresion_value.expresion_array_value = smalloc(sizeof(*result.expresion_value.expresion_array_value));
+			int elements_count = 0;
+			result.expresion_value.expresion_array_value->elements = smalloc(sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
+			int expr_beginning_idx = 1;
+			for (int i = 1; i < size -1; i++) { // start after the '[' and end before the ending ']';
+				// if it finds a square bracket skip it
+				if (expresion_beginning[i].type == Square_bracket && expresion_beginning[i].beginning[0] == '[') {
+					i += offset_of_match_square_bracket(&expresion_beginning[i], size -2);
+				}
+				// if it finds a comma parse the accummulated expresion and start accumulating another one
+				if (expresion_beginning[i].type == Comma) {
+					elements_count += 1;
+					result.expresion_value.expresion_array_value->elements = srealloc(result.expresion_value.expresion_array_value->elements, sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
+					result.expresion_value.expresion_array_value->elements[elements_count -1] = parse_expresion(&expresion_beginning[expr_beginning_idx], i - expr_beginning_idx);
+					//i++;
+					expr_beginning_idx = i +1;
+				}
+			}
+			// if there is are tokens left after the last expresion, also parse them and add them to the list
+			if (expr_beginning_idx != size-1) {
+				elements_count += 1;
+				result.expresion_value.expresion_array_value->elements = srealloc(result.expresion_value.expresion_array_value->elements, sizeof(*result.expresion_value.expresion_array_value->elements) * elements_count);
+				result.expresion_value.expresion_array_value->elements[elements_count -1] = parse_expresion(&expresion_beginning[expr_beginning_idx], (size-1) - expr_beginning_idx);
+			}
+			result.expresion_value.expresion_array_value->elements_count = elements_count;
+			return result;
+		}
+		Token operation;
+		int min_oper_preced = INT_MAX;
+		// if the operation to parse is an array access
+		bool is_operation_access = false;
+		int array_beginning;
+		int array_size;
+		int index_beginning;
+		int index_size;
+		// if the operation to parse is binary
+		bool is_operation_bin = false;
+		int left_side_beginning = 0;
+		int left_side_size;
+		int right_side_beginning;
+		int right_side_size;
+		// if the operation to parse is unary
+		bool is_operation_uni = false;
+		int uni_expresion_beginning;
+		int uni_expresion_size;
+		// indicates if the last token was an operation, it begins being true. used for distinguishing binary and unary operations
+		bool was_last_op_or_null = true;
+		// find the beginning and size of the left and right side of the expresion
+		int i;
+		for (i = 0; i < size; i++) {
+			// if it finds a bracket skip it
+			if (expresion_beginning[i].type == Bracket && expresion_beginning[i].beginning[0] == '(') {
+				i += offset_of_match_bracket(&expresion_beginning[i], size);
+			}
+			// if it finds a square bracket skip it
+			if (expresion_beginning[i].type == Square_bracket && expresion_beginning[i].beginning[0] == '[') {
+				// detect array access operation
+				// it has lower precedence than binary and unary operation
+				if (!was_last_op_or_null && !is_operation_bin && !is_operation_uni) {
+					is_operation_access = true;
+					array_beginning = left_side_beginning;
+					array_size = i - array_beginning;
+					index_beginning = i + 1;
+					index_size = offset_of_match_square_bracket(&expresion_beginning[i], size) -1; // substract 1 to skip the ']'
+				}
+				i += offset_of_match_square_bracket(&expresion_beginning[i], size);
+			}
+			// find the operation with the lowest precedence
+			if (expresion_beginning[i].type == Operation) {
+				if (was_last_op_or_null && !is_operation_bin && !is_operation_uni) {
+					// found a unary operation
+					is_operation_uni = true;
+					min_oper_preced = get_unary_operation_precedence(expresion_beginning[i]);
+					uni_expresion_beginning = i + 1;
+					operation = expresion_beginning[i];
+				}
+				else if (!was_last_op_or_null && get_binary_operation_precedence(expresion_beginning[i]) <= min_oper_preced) {
+					is_operation_bin = true;
+					is_operation_uni = false;
+					is_operation_access = false;
+					min_oper_preced = get_binary_operation_precedence(expresion_beginning[i]);
+					left_side_size = i;
+					operation = expresion_beginning[i];
+					right_side_beginning = i + 1;
+				}
+				was_last_op_or_null = true;
+			}
+			else {
+				was_last_op_or_null = false;
+			}
+		}
+		if (is_operation_bin || is_operation_access) {
+			int enum_op_type;
+			if (is_operation_access) {
+				enum_op_type = binary_operation_access_type;
+				left_side_beginning = array_beginning;
+				left_side_size = array_size;
+				right_side_beginning = index_beginning;
+				right_side_size = index_size;
+			} else {
+				enum_op_type = get_binary_operation_type(operation);
+				right_side_size = i - right_side_beginning;
+			}
+			// create a new node and parse each side of the expresion
+			Node_Binary_Operation * bin_operation = smalloc(sizeof(Node_Binary_Operation));
+			// parse each side of the binary expresion recursively
+			bin_operation->left_side = parse_expresion(&expresion_beginning[left_side_beginning], left_side_size);
+			bin_operation->operation_type = enum_op_type;
+			bin_operation->right_side = parse_expresion(&expresion_beginning[right_side_beginning], right_side_size);
 
-      result.expresion_value.expresion_binary_operation_value = bin_operation;
-      result.expresion_type = expresion_binary_operation_type;
-    }
-    else if (is_operation_uni) {
-      uni_expresion_size = i - uni_expresion_beginning;
-      // create a new node and parse the expresion
-      Node_Unary_Operation * uni_operation = smalloc(sizeof(Node_Unary_Operation));
-      // parse the unary expresion recursively
-      uni_operation->expresion = parse_expresion(&expresion_beginning[uni_expresion_beginning], uni_expresion_size);
-      uni_operation->operation_type = get_unary_operation_type(operation);
+			result.expresion_value.expresion_binary_operation_value = bin_operation;
+			result.expresion_type = expresion_binary_operation_type;
+		}
+		else if (is_operation_uni) {
+			uni_expresion_size = i - uni_expresion_beginning;
+			// create a new node and parse the expresion
+			Node_Unary_Operation * uni_operation = smalloc(sizeof(Node_Unary_Operation));
+			// parse the unary expresion recursively
+			uni_operation->expresion = parse_expresion(&expresion_beginning[uni_expresion_beginning], uni_expresion_size);
+			uni_operation->operation_type = get_unary_operation_type(operation);
 
-      result.expresion_value.expresion_unary_operation_value = uni_operation;
-      result.expresion_type = expresion_unary_operation_type;
-    }
-    // if it did not found an operation report it
-    else {
-      errorf("Line:%d, column:%d.  Error: expected an operation in expresion\n", expresion_beginning->line_number, expresion_beginning->column_number);
-    }
-  }
-  return result;
+			result.expresion_value.expresion_unary_operation_value = uni_operation;
+			result.expresion_type = expresion_unary_operation_type;
+		}
+		// if it did not found an operation report it
+		else {
+			errorf("Line:%d, column:%d.  Error: expected an operation in expresion\n", expresion_beginning->line_number, expresion_beginning->column_number);
+		}
+	}
+	return result;
 }
 
 
 // returns the offset of the next the semicolon token counting from the beginning pointer
 // in case there is no semicolon or something happend, reports an error and exits
 static int next_semicolon_offset(const Token * beginning) {
-  int offset;
-  for (offset = 0; beginning[offset].type != Semi_colon; offset++) {
-    Token token = beginning[offset];
-    if (token.type == End_of_file) {
-      errorf("Line:%d, column:%d.  Error: could not find the expected semicolon\n", token.line_number, token.column_number);
-    }
-    if (token.type == Curly_bracket) {
-      errorf("Line:%d, column:%d.  Error: expected a semicoln before curly bracket\n", token.line_number, token.column_number);
-    }
-  }
-  return offset;
+	int offset;
+	for (offset = 0; beginning[offset].type != Semi_colon; offset++) {
+		Token token = beginning[offset];
+		if (token.type == End_of_file) {
+			errorf("Line:%d, column:%d.  Error: could not find the expected semicolon\n", token.line_number, token.column_number);
+		}
+		if (token.type == Curly_bracket) {
+			errorf("Line:%d, column:%d.  Error: expected a semicoln before curly bracket\n", token.line_number, token.column_number);
+		}
+	}
+	return offset;
 }
 
 // returns the offset of the next the '=' token counting from the beginning pointer
 // if it could not find it, reports an error and exits
 static int next_asign_offset(const Token * beginning) {
-  int offset;
-  for (offset = 0; compare_token_to_string(beginning[offset], "=") == 0; offset++) {
-    Token token = beginning[offset];
-    if (token.type == End_of_file) {
-      errorf("Line:%d, column:%d.  Error: could not find the expected '='\n", token.line_number, token.column_number);
-    }
-    if (token.type == Semi_colon) {
-      errorf("Line:%d, column:%d.  Error: expected a '=' and an expression\n", token.line_number, token.column_number);
-    }
-    if (token.type == Curly_bracket) {
-      errorf("Line:%d, column:%d.  Error: expected a '=', an expression and a ':'\n", token.line_number, token.column_number);
-    }
-  }
-  return offset;
+	int offset;
+	for (offset = 0; compare_token_to_string(beginning[offset], "=") == 0; offset++) {
+		Token token = beginning[offset];
+		if (token.type == End_of_file) {
+			errorf("Line:%d, column:%d.  Error: could not find the expected '='\n", token.line_number, token.column_number);
+		}
+		if (token.type == Semi_colon) {
+			errorf("Line:%d, column:%d.  Error: expected a '=' and an expression\n", token.line_number, token.column_number);
+		}
+		if (token.type == Curly_bracket) {
+			errorf("Line:%d, column:%d.  Error: expected a '=', an expression and a ':'\n", token.line_number, token.column_number);
+		}
+	}
+	return offset;
+}
 
+Assignment_Dest parse_assignment_destination(const Token * assgn_dest_beginning, const int size) {
+	Assignment_Dest assgn_dest;
+	if (assgn_dest_beginning[0].type == Identifier && size == 1) {
+		Token variable_name = assgn_dest_beginning[0];
+		assgn_dest.destination_type = assgn_dest_var_name_type;
+		assgn_dest.destination_value.var_name = variable_name;
+	} else if (compare_token_to_string(assgn_dest_beginning[0], "*")) {
+		Node_Expresion expresion = parse_expresion(&assgn_dest_beginning[1], size - 1);
+		assgn_dest.destination_type = assgn_dest_deref_type;
+		assgn_dest.destination_value.deref_expresion = smalloc(sizeof(*assgn_dest.destination_value.deref_expresion));
+		*assgn_dest.destination_value.deref_expresion = expresion;
+	} else if (assgn_dest_beginning[0].type == Identifier && compare_token_to_string(assgn_dest_beginning[1], "[")) {
+		if (!compare_token_to_string(assgn_dest_beginning[size -1], "]")) {
+			Token last_token = assgn_dest_beginning[size -1];
+			errorf("Line:%d, column:%d.  Error: expected a ']' in array subscript in variable assignment\n", last_token.line_number, last_token.column_number);
+		}
+		Token array_name = assgn_dest_beginning[0];
+		Node_Expresion idx_expr = parse_expresion(&assgn_dest_beginning[2], size - 3); // the expression between the square brackets
+		assgn_dest.destination_type = assgn_dest_subscript_type;
+		assgn_dest.destination_value.array_name = array_name;
+		assgn_dest.destination_value.index_expr = smalloc(sizeof(*assgn_dest.destination_value.index_expr));
+		*assgn_dest.destination_value.index_expr = idx_expr;
+	} else {
+		errorf("Line:%d, column:%d.  Error: invalid destination in variable assignment\n", assgn_dest_beginning->line_number, assgn_dest_beginning->column_number);
+	}
+	return assgn_dest;
 }
 
 // parses a type definition
 Node_Type parse_type(const Token * type_beginning, const int type_sz) {
-  if (type_sz == 0) {
-    errorf("Line:%d, column:%d.  Error: expected a type\n", type_beginning->line_number, type_beginning->column_number);
-  }
-  if (type_sz == 1) {
-    if (!compare_token_to_string(type_beginning[0], "u64")) {
-      errorf("Line:%d, column:%d.  Error: expected the primitive type to be 'u64'\n", type_beginning->line_number, type_beginning->column_number);
-    }
-    Node_Type type = {
-      .token=type_beginning[0],
-      .type_type=type_primitive_type,
-      .type_value.type_primitive_value=type_beginning[0]
-    };
-    return type;
-  }
-  Node_Type type;
-  int i = 0;
-  if (compare_token_to_string(type_beginning[i], "ptr")) {
-    type.token = type_beginning[i];
-    type.type_type = type_ptr_type;
-    type.type_value.type_ptr_value = smalloc(sizeof(*type.type_value.type_ptr_value));
-    *type.type_value.type_ptr_value = parse_type(&type_beginning[i + 1], type_sz - 1); // add 1 to skip the already parsed "ptr", and sub 1 to account for that
-    i += 1;
-  }
-  else if (compare_token_to_string(type_beginning[i], "[")) {
-    int offset =  offset_of_match_square_bracket(&type_beginning[i],  type_sz - 1);
-    // expect a single token inside the brackets
-    if (offset -1 != 1) { // substract 1 to skip the ending ']'
-      errorf("Line:%d, column:%d.  Error: expected a single token inside the brackets for the array size\n", type_beginning[i].line_number, type_beginning[i].column_number);
-    }
-    if (type_beginning[i + 1].type != Number) {
-      errorf("Line:%d, column:%d.  Error: expected a number inside the brackets for the array size\n", type_beginning[i].line_number, type_beginning[i].column_number);
-    }
-    type.token = type_beginning[i + 1];
-    type.type_type = type_array_type;
-    type.type_value.type_array_value = smalloc(sizeof(*type.type_value.type_array_value));
-    type.type_value.type_array_value->elements_count = type_beginning[i + 1];
-    type.type_value.type_array_value->primitive_type = smalloc(sizeof(*type.type_value.type_array_value->primitive_type));
+	if (type_sz == 0) {
+		errorf("Line:%d, column:%d.  Error: expected a type\n", type_beginning->line_number, type_beginning->column_number);
+	}
+	if (type_sz == 1) {
+		if (!compare_token_to_string(type_beginning[0], "u64")) {
+			errorf("Line:%d, column:%d.  Error: expected the primitive type to be 'u64'\n", type_beginning->line_number, type_beginning->column_number);
+		}
+		Node_Type type = {
+			.token=type_beginning[0],
+			.type_type=type_primitive_type,
+			.type_value.type_primitive_value=type_beginning[0]
+		};
+		return type;
+	}
+	Node_Type type;
+	int i = 0;
+	if (compare_token_to_string(type_beginning[i], "ptr")) {
+		type.token = type_beginning[i];
+		type.type_type = type_ptr_type;
+		type.type_value.type_ptr_value = smalloc(sizeof(*type.type_value.type_ptr_value));
+		*type.type_value.type_ptr_value = parse_type(&type_beginning[i + 1], type_sz - 1); // add 1 to skip the already parsed "ptr", and sub 1 to account for that
+		i += 1;
+	}
+	else if (compare_token_to_string(type_beginning[i], "[")) {
+		int offset =  offset_of_match_square_bracket(&type_beginning[i],  type_sz - 1);
+		// expect a single token inside the brackets
+		if (offset -1 != 1) { // substract 1 to skip the ending ']'
+			errorf("Line:%d, column:%d.  Error: expected a single token inside the brackets for the array size\n", type_beginning[i].line_number, type_beginning[i].column_number);
+		}
+		if (type_beginning[i + 1].type != Number) {
+			errorf("Line:%d, column:%d.  Error: expected a number inside the brackets for the array size\n", type_beginning[i].line_number, type_beginning[i].column_number);
+		}
+		type.token = type_beginning[i + 1];
+		type.type_type = type_array_type;
+		type.type_value.type_array_value = smalloc(sizeof(*type.type_value.type_array_value));
+		type.type_value.type_array_value->elements_count = type_beginning[i + 1];
+		type.type_value.type_array_value->primitive_type = smalloc(sizeof(*type.type_value.type_array_value->primitive_type));
 
-    Node_Type primitive_type = parse_type(&type_beginning[i + 3], type_sz - 3); // the 3s are to skip the tokens: '[', number, ']'
+		Node_Type primitive_type = parse_type(&type_beginning[i + 3], type_sz - 3); // the 3s are to skip the tokens: '[', number, ']'
 
-    *type.type_value.type_array_value->primitive_type = primitive_type;
+		*type.type_value.type_array_value->primitive_type = primitive_type;
 
-    i += offset;
-    i += 1;
-  }
-  else {
-    errorf("Line:%d, column:%d.  Error: expected a type decorator\n", type_beginning->line_number, type_beginning->column_number);
-  }
-  return type;
+		i += offset;
+		i += 1;
+	}
+	else {
+		errorf("Line:%d, column:%d.  Error: expected a type decorator\n", type_beginning->line_number, type_beginning->column_number);
+	}
+	return type;
 }
 
 // parse a scope the same way as a program
 Node_Scope parse_scope(const Token * tokens, const int tokens_count) {
-  Token * new_tokens = smalloc((tokens_count + 1) * sizeof(Token)); // add 1 for space of the EOF token
-  // add EOF token so it can be parse tha same way as a program
-  new_tokens[tokens_count] = (Token) {  .beginning = NULL,
-                                        .length = 0,
-                                        .type = End_of_file
-                                     };
-  memcpy(new_tokens, tokens, tokens_count * sizeof(Token));
-  Node_Program temp_program = parser(new_tokens);
-  free(new_tokens);
-  Node_Scope scope;
-  scope.statements_count = temp_program.statements_count;
-  scope.statements_node = temp_program.statements_node;
-  return scope;
+	Token * new_tokens = smalloc((tokens_count + 1) * sizeof(Token)); // add 1 for space of the EOF token
+	// add EOF token so it can be parse tha same way as a program
+	new_tokens[tokens_count] = (Token) { .beginning = NULL,
+										 .length = 0,
+										 .type = End_of_file
+									   };
+	memcpy(new_tokens, tokens, tokens_count * sizeof(Token));
+	Node_Program temp_program = parser(new_tokens);
+	free(new_tokens);
+	Node_Scope scope;
+	scope.statements_count = temp_program.statements_count;
+	scope.statements_node = temp_program.statements_node;
+	return scope;
 }
 
 // tries to parse the scope the ptr points to
 // idx is a ptr to the index of the first '{' in the tokens
 // idx will be updated to the matching '}'
 Node_Scope parse_scope_at(const Token * tokens, int * idx) {
-  int scope_count = 1; // counter of nested scopes to allow recursive scopes
-  int i = *idx;
-  // match the beginning of the scope with its ending accounting for recursive scopes
-  while (scope_count != 0) {
-    if (tokens[i].type == End_of_file) {
-      errorf("Line:%d, column:%d.  Error: unmatched open curly bracket\n", tokens->line_number, tokens->column_number);
-    }
-    i++;
-    if (tokens[i].type == Curly_bracket) {
-      if (compare_token_to_string(tokens[i], "{")) scope_count++;
-      if (compare_token_to_string(tokens[i], "}")) scope_count--;
-    }
-  }
-  Node_Scope scope = parse_scope(&tokens[*idx + 1], i - *idx -1); // add and substract 1 to avoid the original `{`, `}`
-  *idx = i;
-  return scope;
+	int scope_count = 1; // counter of nested scopes to allow recursive scopes
+	int i = *idx;
+	// match the beginning of the scope with its ending accounting for recursive scopes
+	while (scope_count != 0) {
+		if (tokens[i].type == End_of_file) {
+			errorf("Line:%d, column:%d.  Error: unmatched open curly bracket\n", tokens->line_number, tokens->column_number);
+		}
+		i++;
+		if (tokens[i].type == Curly_bracket) {
+			if (compare_token_to_string(tokens[i], "{")) scope_count++;
+			if (compare_token_to_string(tokens[i], "}")) scope_count--;
+		}
+	}
+	Node_Scope scope = parse_scope(&tokens[*idx + 1], i - *idx -1); // add and substract 1 to avoid the original `{`, `}`
+	*idx = i;
+	return scope;
 }
 
 // parses exit statement
@@ -824,12 +890,12 @@ Node_Scope parse_scope_at(const Token * tokens, int * idx) {
 // index is indicates the 'exit' token in the tokens
 // index will be updated to the corresponding ';'
 Node_Exit parse_exit_at(const Token * tokens, int * idx) {
-  int expresion_beginning = *idx +1; // add 1 to skip the "exit"
-  *idx += next_semicolon_offset(&tokens[*idx]);
-  int expresion_size = *idx - expresion_beginning;
-  Node_Exit node_exit;
-  node_exit.exit_code = parse_expresion(&tokens[expresion_beginning], expresion_size);
-  return node_exit;
+	int expresion_beginning = *idx +1; // add 1 to skip the "exit"
+	*idx += next_semicolon_offset(&tokens[*idx]);
+	int expresion_size = *idx - expresion_beginning;
+	Node_Exit node_exit;
+	node_exit.exit_code = parse_expresion(&tokens[expresion_beginning], expresion_size);
+	return node_exit;
 }
 
 // parses print statement
@@ -837,12 +903,12 @@ Node_Exit parse_exit_at(const Token * tokens, int * idx) {
 // index is indicates the 'print' token in the tokens
 // index will be updated to the corresponding ';'
 Node_Print parse_print_at(const Token * tokens, int * idx) {
-  int expresion_beginning = *idx +1; // add 1 to skip the "print"
-  *idx += next_semicolon_offset(&tokens[*idx]);
-  int expresion_size = *idx - expresion_beginning;
-  Node_Print node_print;
-  node_print.chr = parse_expresion(&tokens[expresion_beginning], expresion_size);
-  return node_print;
+	int expresion_beginning = *idx +1; // add 1 to skip the "print"
+	*idx += next_semicolon_offset(&tokens[*idx]);
+	int expresion_size = *idx - expresion_beginning;
+	Node_Print node_print;
+	node_print.chr = parse_expresion(&tokens[expresion_beginning], expresion_size);
+	return node_print;
 }
 
 // parses variable declaration statement
@@ -850,28 +916,28 @@ Node_Print parse_print_at(const Token * tokens, int * idx) {
 // index is indicates the variable name token in the tokens
 // index will be updated to the corresponding ';'
 Node_Var_declaration parse_var_declaration_at(const Token * tokens, int * idx) {
-  if (tokens[*idx].type != Identifier) {
-    errorf("Line:%d, column:%d.  Error: expected an identifier in variable declaration\n", tokens->line_number, tokens->column_number);
-  }
-  Token var_name = tokens[*idx];
+	if (tokens[*idx].type != Identifier) {
+		errorf("Line:%d, column:%d.  Error: expected an identifier in variable declaration\n", tokens->line_number, tokens->column_number);
+	}
+	Token var_name = tokens[*idx];
 
-  *idx += 2; // add 2 to skip the variable name and the ':'
-  const Token * type_beginning = &tokens[*idx];
-  *idx += next_asign_offset(type_beginning);
-  int type_sz = &tokens[*idx] - type_beginning;
-  Node_Type type = parse_type(type_beginning, type_sz);
+	*idx += 2; // add 2 to skip the variable name and the ':'
+	const Token * type_beginning = &tokens[*idx];
+	*idx += next_asign_offset(type_beginning);
+	int type_sz = &tokens[*idx] - type_beginning;
+	Node_Type type = parse_type(type_beginning, type_sz);
 
-  int expresion_beginning = *idx +1; // add 1 to skip the '='
-  *idx += next_semicolon_offset(&tokens[*idx]);
-  int expresion_size = *idx - expresion_beginning;
-  Node_Expresion expresion = parse_expresion(&tokens[expresion_beginning], expresion_size);
+	int expresion_beginning = *idx +1; // add 1 to skip the '='
+	*idx += next_semicolon_offset(&tokens[*idx]);
+	int expresion_size = *idx - expresion_beginning;
+	Node_Expresion expresion = parse_expresion(&tokens[expresion_beginning], expresion_size);
 
-  Node_Var_declaration node_var_declaration = {
-    .var_name = var_name,
-    .type=type,
-    .value=expresion
-  };
-  return node_var_declaration;
+	Node_Var_declaration node_var_declaration = {
+		.var_name = var_name,
+		.type=type,
+		.value=expresion
+	};
+	return node_var_declaration;
 }
 
 // parses variable assignment statement
@@ -879,21 +945,20 @@ Node_Var_declaration parse_var_declaration_at(const Token * tokens, int * idx) {
 // index is indicates the variable name token in the tokens
 // index will be updated to the corresponding ';'
 Node_Var_assignment parse_var_assignment_at(const Token * tokens, int * idx) {
-  if (tokens[*idx].type != Identifier) {
-    errorf("Line:%d, column:%d.  Error: expected an identifier in variable assigment\n", tokens->line_number, tokens->column_number);
-  }
-  Token var_name = tokens[*idx];
-  // add 2 to skip the var name and the "="
-  int expresion_beginning = *idx + 2;
-  *idx += next_semicolon_offset(&tokens[*idx]);
-  int expresion_size = *idx - expresion_beginning;
-  Node_Expresion expresion = parse_expresion(&tokens[expresion_beginning], expresion_size);
+	int assgn_dest_idx = *idx;
+	*idx += next_asign_offset(&tokens[*idx]);
+	Assignment_Dest assgn_dest = parse_assignment_destination(&tokens[assgn_dest_idx], *idx - assgn_dest_idx);
+	*idx += 1; // add 1 to skip the '='
+	int expresion_beginning = *idx;
+	*idx += next_semicolon_offset(&tokens[*idx]);
+	int expresion_size = *idx - expresion_beginning;
+	Node_Expresion expresion = parse_expresion(&tokens[expresion_beginning], expresion_size);
 
-  Node_Var_assignment node_var_assigment = {
-    .var_name=var_name,
-    .value=expresion
-  };
-  return node_var_assigment;
+	Node_Var_assignment node_var_assignment = {
+		.destination=assgn_dest,
+		.value=expresion
+	};
+	return node_var_assignment;
 }
 
 // parses if (and else) statement
@@ -901,27 +966,34 @@ Node_Var_assignment parse_var_assignment_at(const Token * tokens, int * idx) {
 // index is indicates the 'if' token in the tokens
 // index will be updated to the corresponding '}'
 Node_If parse_if_at(const Token * tokens, int * idx) {
-  // parse the condition
-  *idx += 1; // add 1 to skip the 'if'
-  const Token * expr = &tokens[*idx];
-  int expr_sz = *idx;
-  // FIX: improve this loop, it is very unsafe
-  do { ++*idx; } while (tokens[*idx].type != Curly_bracket);
-  expr_sz = *idx - expr_sz;
-  Node_Expresion condition = parse_expresion(expr, expr_sz);
+	// parse the condition
+	*idx += 1; // add 1 to skip the 'if'
+	const Token * expr = &tokens[*idx];
+	int expr_sz = *idx;
+	// TODO: finnish this or check that it is correct
+	while (!compare_token_to_string(tokens[*idx], "{")) {
+		if (tokens[*idx].type == End_of_file || tokens[*idx].type == Semi_colon) {
+			errorf("Line:%d, column:%d.  Error: expected a scope after 'if' statement\n", tokens[*idx].line_number, tokens[*idx].column_number);
+		}
+		*idx += 1;
+	}
+	/*// FIX: improve this loop, it is very unsafe
+	do { ++*idx; } while (tokens[*idx].type != Curly_bracket);*/
+	expr_sz = *idx - expr_sz;
+	Node_Expresion condition = parse_expresion(expr, expr_sz);
 
-  // parse the if body
-  Node_Scope scope = parse_scope_at(tokens, idx);
-  Node_If node_if = (Node_If) {.condition=condition, scope=scope};
+	// parse the if body
+	Node_Scope scope = parse_scope_at(tokens, idx);
+	Node_If node_if = (Node_If) {.condition=condition, scope=scope};
 
-  if (compare_token_to_string(tokens[*idx + 1], "else")) {
-    *idx += 2; // add 2 to skip the '}' and the 'else'
-    node_if.has_else_block = true;
-    node_if.else_block = parse_scope_at(tokens, idx);
-  } else {
-    node_if.has_else_block = false;
-  }
-  return node_if;
+	if (compare_token_to_string(tokens[*idx + 1], "else")) {
+		*idx += 2; // add 2 to skip the '}' and the 'else'
+		node_if.has_else_block = true;
+		node_if.else_block = parse_scope_at(tokens, idx);
+	} else {
+		node_if.has_else_block = false;
+	}
+	return node_if;
 }
 
 // parses while statement
@@ -929,89 +1001,91 @@ Node_If parse_if_at(const Token * tokens, int * idx) {
 // index is indicates the 'while' token in the tokens
 // index will be updated to the corresponding '}'
 Node_While parse_while_at(const Token * tokens, int * idx) {
-  // parse the condition
-  *idx += 1; // add 1 to skip the 'while'
-  const Token * expr = &tokens[*idx];
-  int expr_sz = *idx;
-  // FIX: improve this loop, it is very unsafe
-  do { ++*idx; } while (tokens[*idx].type != Curly_bracket);
-  expr_sz = *idx - expr_sz;
-  Node_Expresion condition = parse_expresion(expr, expr_sz);
+	// parse the condition
+	*idx += 1; // add 1 to skip the 'while'
+	const Token * expr = &tokens[*idx];
+	int expr_sz = *idx;
+	// TODO: finnish this or check that it is correct
+	while (!compare_token_to_string(tokens[*idx], "{")) {
+		if (tokens[*idx].type == End_of_file || tokens[*idx].type == Semi_colon) {
+			errorf("Line:%d, column:%d.  Error: expected a scope after 'if' statement\n", tokens[*idx].line_number, tokens[*idx].column_number);
+		}
+		*idx += 1;
+	}
+	/*// FIX: improve this loop, it is very unsafe
+	do { ++*idx; } while (tokens[*idx].type != Curly_bracket);*/
+	expr_sz = *idx - expr_sz;
+	Node_Expresion condition = parse_expresion(expr, expr_sz);
 
-  Node_Scope scope = parse_scope_at(tokens, idx);
-  Node_While node_while = (Node_While) {
-    .condition=condition,
-    .scope=scope
-  };
-  return node_while;
+	Node_Scope scope = parse_scope_at(tokens, idx);
+	Node_While node_while = (Node_While) {
+		.condition=condition,
+		.scope=scope
+	};
+	return node_while;
+}
+
+// parses a statement
+// requires the stream of tokens and an index to the first token of the statement
+// the index will be updated to the to token just after the statement
+Node_Statement parse_statement_at(const Token * tokens, int * idx) {
+	Node_Statement stmt;
+	if (compare_token_to_string(tokens[*idx], "exit")) {
+		stmt.statement_type = exit_node_type;
+		stmt.statement_value.exit_node = parse_exit_at(tokens, idx);
+	}
+	else if (compare_token_to_string(tokens[*idx], "print")) {
+		stmt.statement_type = print_type;
+		stmt.statement_value.print = parse_print_at(tokens, idx);
+	}
+	else if (compare_token_to_string(tokens[*idx], "{")) {
+		stmt.statement_type = scope_type;
+		stmt.statement_value.scope = parse_scope_at(tokens, idx);
+	}
+	else if (compare_token_to_string(tokens[*idx], "if")) {
+		stmt.statement_type = if_type;
+		stmt.statement_value.if_node = parse_if_at(tokens, idx);
+	}
+	else if (compare_token_to_string(tokens[*idx], "while")) {
+		stmt.statement_type = while_type;
+		stmt.statement_value.while_node = parse_while_at(tokens, idx);
+	}
+	else {
+		bool stmt_found = false;
+		for (int i = 0; tokens[i].type != Semi_colon && tokens[i].type != End_of_file; i++) {
+			if (compare_token_to_string(tokens[*idx+i], "=")) {
+				stmt.statement_type = var_assignment_type;
+				stmt.statement_value.var_assignment = parse_var_assignment_at(tokens, idx);
+				stmt_found = true;
+				break;
+			} else if (compare_token_to_string(tokens[*idx+i], ":")) {
+				stmt.statement_type = var_declaration_type;
+				stmt.statement_value.var_declaration = parse_var_declaration_at(tokens, idx);
+				stmt_found = true;
+				break;
+			}
+		}
+		if (!stmt_found) {
+			errorf("Line:%d, column:%d.  Error: unkown statement type\n", tokens[*idx].line_number, tokens[*idx].column_number);
+		}
+	}
+	return stmt;
 }
 
 // parses the tokens into a syntax tree
 Node_Program parser(const Token * tokens) {
-  Node_Program result_tree;
-  int statements_num = 0;
-  result_tree.statements_node = malloc(statements_num * sizeof(Node_Statement));
-  result_tree.statements_count = 0;
-
-  for (int i = 0; tokens[i].type != End_of_file; i++) {
-    statements_num += 1;
-    Node_Statement * new_tree = srealloc(result_tree.statements_node, statements_num * sizeof(Node_Statement));
-    // exit node
-    if (compare_token_to_string(tokens[i], "exit")) {
-      Node_Statement stmt;
-      stmt.statement_type = exit_node_type;
-      stmt.statement_value.exit_node = parse_exit_at(tokens, &i);
-      new_tree[statements_num -1] = stmt;
-      result_tree.statements_node = new_tree;
-    }
-    else if (compare_token_to_string(tokens[i], "print")) {
-      Node_Statement stmt;
-      stmt.statement_type = print_type;
-      stmt.statement_value.print = parse_print_at(tokens, &i);
-      new_tree[statements_num -1] = stmt;
-      result_tree.statements_node = new_tree;
-    }
-    else if (compare_token_to_string(tokens[i + 1], ":")) {
-      Node_Statement stmt;
-      stmt.statement_type = var_declaration_type;
-      stmt.statement_value.var_declaration = parse_var_declaration_at(tokens, &i);
-      new_tree[statements_num -1] = stmt;
-      result_tree.statements_node = new_tree;
-    }
-    else if (compare_token_to_string(tokens[i + 1], "=")) {
-      Node_Statement stmt;
-      stmt.statement_type = var_assignment_type;
-      stmt.statement_value.var_assignment = parse_var_assignment_at(tokens, &i);
-      new_tree[statements_num -1] = stmt;
-      result_tree.statements_node = new_tree;
-    }
-    else if (compare_token_to_string(tokens[i], "{")) {
-      Node_Statement stmt;
-      stmt.statement_type = scope_type;
-      stmt.statement_value.scope = parse_scope_at(tokens, &i);;
-      new_tree[statements_num -1] = stmt;
-      result_tree.statements_node = new_tree;
-    }
-    else if (compare_token_to_string(tokens[i], "if")) {
-      Node_Statement stmt;
-      stmt.statement_type = if_type;
-      stmt.statement_value.if_node = parse_if_at(tokens, &i);;
-      new_tree[statements_num -1] = stmt;
-      result_tree.statements_node = new_tree;
-    }
-    else if (compare_token_to_string(tokens[i], "while")) {
-      Node_Statement stmt;
-      stmt.statement_type = while_type;
-      stmt.statement_value.while_node = parse_while_at(tokens, &i);;
-      new_tree[statements_num -1] = stmt;
-      result_tree.statements_node = new_tree;
-    }
-    else {
-      errorf("Line:%d, column:%d.  Error: unkown statement type\n", tokens[i].line_number, tokens[i].column_number);
-    }
-  }
-  result_tree.statements_count = statements_num;
-  return result_tree;
+	Node_Program result_tree;
+	int statements_num = 0;
+	result_tree.statements_node = malloc(statements_num * sizeof(Node_Statement));
+	result_tree.statements_count = 0;
+	for (int i = 0; tokens[i].type != End_of_file; i++) {
+		statements_num++;
+		Node_Statement * new_tree = srealloc(result_tree.statements_node, statements_num * sizeof(Node_Statement));
+		new_tree[statements_num -1] = parse_statement_at(tokens, &i);
+		result_tree.statements_node = new_tree;
+	}
+	result_tree.statements_count = statements_num;
+	return result_tree;
 }
 
 #endif

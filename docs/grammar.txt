@@ -8,9 +8,9 @@ letter = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" |
 
 identifier = letter, {letter | digit} ;
 
-bin_operator = "+" | "-" | "*" | "/" | ">" | "<" | "==" ;
+bin_operator = "+" | "-" | "*" | "/" | "%" | ">" | "<" | "==" ;
 
-uni_operator = "&" ;
+uni_operator = "&", "*" ;
 
 
 Type = "u64" | ("ptr", Type) | ("[", number, "]", Type);
@@ -21,18 +21,23 @@ Expresion =
      Binary_operation |
      Unary_operation |
      ("(", Expresion, ")") |
-     ("[", {Expresion, ","}, Expresion "]") |
+     ("[", {Expresion, ","}, Expresion, "]") |
      (Expresion, "[", Expresion, "]") ;
 
 Binary_operation = Expresion, bin_operator, Expresion ;
 
 Unary_operation = uni_operator, Expresion;
 
-Var_declaration = (identifier, ":", Type, "=", Expresion, ";") ;
+Assigment_destination =
+	 identifier |
+	 ("*", Expresion) |
+	 (identifier, "[", Expresion, "]") ;
 
-Var_assigment = (identifier, "=", Expresion, ";") ;
+Var_declaration = identifier, ":", Type, "=", Expresion, ";" ;
 
-Exit = ("exit", Expresion, ";") ;
+Var_assigment = Assigment_destination, "=", Expresion, ";" ;
+
+Exit = "exit", Expresion, ";" ;
 
 Scope = "{", {Statement}, "}" ;
 
