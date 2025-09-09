@@ -13,7 +13,10 @@ bin_operator = "+" | "-" | "*" | "/" | "%" | ">" | "<" | "==" ;
 uni_operator = "&", "*" ;
 
 
-Type = "u64" | ("ptr", Type) | ("[", number, "]", Type);
+Type = "u64" |
+	 ("ptr", Type) |
+	 ("[", number, "]", Type) |
+	 ("fn", Type, "(", [{Type, ","}, Type], ")") ;
 
 Expresion =
      number |
@@ -22,7 +25,8 @@ Expresion =
      Unary_operation |
      ("(", Expresion, ")") |
      ("[", {Expresion, ","}, Expresion, "]") |
-     (Expresion, "[", Expresion, "]") ;
+     (Expresion, "[", Expresion, "]") |
+	 (identifier, "(", [{Expresion, ","}, Expresion], ")") ;
 
 Binary_operation = Expresion, bin_operator, Expresion ;
 
@@ -41,12 +45,15 @@ Exit = "exit", Expresion, ";" ;
 
 Scope = "{", {Statement}, "}" ;
 
-If = "if", Expresion, Scope |
-     ["else", Scope] ;
+If = "if", Expresion, Scope, ["else", Scope] ;
 
 While = "while", Expresion, Scope ;
 
-Print = "print", Expresion ;
+Print = "print", Expresion, ";" ;
+
+Func_def = "fn", [Type], identifier, "(", [{identifier, ":", Type, ","}, identifier, ":", Type], ")", Scope ;
+
+Return = "return", [Expresion], ";" ;
 
 Statement = Var_declaration |
             Var_assigment |
@@ -54,6 +61,9 @@ Statement = Var_declaration |
             Scope |
             If |
             While |
-            Print ;
+            Print |
+			Func_def |
+			Return |
+			(Expresion, ";") ;
 
-Progamm = {Statement} ;
+Programm = {Statement} ;

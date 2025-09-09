@@ -20,7 +20,7 @@ void error(const char * string) {
   exit(1);
 }
 
-// a printf() like error function, displays an error and exits the aplication
+// a printf()-like error function; displays an error and exits the aplication
 // format is the string to be printed, and has to be null terminated
 // the format(s) must have the following syntax: %? . Being `?` the type of the format
 // the type of format available are:
@@ -64,10 +64,10 @@ void errorf(const char * format, ...) {
         printf("\n[incorrect format in errorf() function]\n");
         exit(1);
       }
-      // skip the next symbol and continue
-      i++; continue;
-    }
-    putchar(symbol);
+      i++;
+    } else {
+  	  putchar(symbol);
+	}
   }
   exit(1);
 }

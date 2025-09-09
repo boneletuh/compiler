@@ -4,7 +4,7 @@
 #include "errors.h"
 #include "mlib.h"
 
-#define NULL_TOKEN (Token) { .beginning=NULL, .length=0, .type=End_of_file }
+#define NULL_TOKEN (Token) { .beginning=NULL, .length=0, .type=End_of_file, .line_number=-1, .column_number=-1 }
 
 
 typedef struct Token {
@@ -50,10 +50,10 @@ bool is_in_str(char symbol, const char * string) {
 }
 
 // appends a token to the end of the array of tokens
-static Token * append_token(Token * tokens, int tokens_count, const Token token) {
-	tokens_count += 1;
-	tokens = srealloc(tokens, sizeof(Token) * (tokens_count + 1));
-	tokens[tokens_count -1] = token;
+static Token * append_token(Token * tokens, int * tokens_count, const Token token) {
+	*tokens_count += 1;
+	tokens = srealloc(tokens, sizeof(Token) * (*tokens_count + 1));
+	tokens[*tokens_count -1] = token;
 	return tokens;
 }
 
@@ -79,13 +79,14 @@ Token * lexer(char * string) {
 
 	int line_number = 1;
 	int line_begin_idx = 0;
+	int column = 0;
 
 	int i;
 	for (i = 0; string[i] != '\0'; i++) {
 		const char symbol = string[i];
-		int column = i - line_begin_idx +1;
 		switch (mode) {
 			case searching_token:
+				column = i - line_begin_idx +1;
 				token_beginning = i;
 				if (is_in_str(symbol, var_sym)) {
 					mode = identifier;
@@ -111,8 +112,7 @@ Token * lexer(char * string) {
 						new_token.line_number = line_number;
 						new_token.column_number = column;
 
-						token_array = append_token(token_array, token_count, new_token);
-						token_count++;
+						token_array = append_token(token_array, &token_count, new_token);
 
 						// add 1 because the token is 1 character longer
 						i += 1;
@@ -126,8 +126,7 @@ Token * lexer(char * string) {
 						new_token.line_number = line_number;
 						new_token.column_number = column;
 
-						token_array = append_token(token_array, token_count, new_token);
-						token_count++;
+						token_array = append_token(token_array, &token_count, new_token);
 
 						token_beginning = i;
 						mode = searching_token;
@@ -142,8 +141,7 @@ Token * lexer(char * string) {
 					new_token.line_number = line_number;
 					new_token.column_number = column;
 
-					token_array = append_token(token_array, token_count, new_token);
-					token_count++;
+					token_array = append_token(token_array, &token_count, new_token);
 
 					token_beginning = i;
 					mode = searching_token;
@@ -155,8 +153,7 @@ Token * lexer(char * string) {
 					new_token.line_number = line_number;
 					new_token.column_number = column;
 
-					token_array = append_token(token_array, token_count, new_token);
-					token_count++;
+					token_array = append_token(token_array, &token_count, new_token);
 
 					token_beginning = i;
 					mode = searching_token;
@@ -168,8 +165,7 @@ Token * lexer(char * string) {
 					new_token.line_number = line_number;
 					new_token.column_number = column;
 
-					token_array = append_token(token_array, token_count, new_token);
-					token_count++;
+					token_array = append_token(token_array, &token_count, new_token);
 
 					token_beginning = i;
 					mode = searching_token;
@@ -181,8 +177,7 @@ Token * lexer(char * string) {
 					new_token.line_number = line_number;
 					new_token.column_number = column;
 
-					token_array = append_token(token_array, token_count, new_token);
-					token_count++;
+					token_array = append_token(token_array, &token_count, new_token);
 
 					token_beginning = i;
 					mode = searching_token;
@@ -194,8 +189,7 @@ Token * lexer(char * string) {
 					new_token.line_number = line_number;
 					new_token.column_number = column;
 
-					token_array = append_token(token_array, token_count, new_token);
-					token_count++;
+					token_array = append_token(token_array, &token_count, new_token);
 
 					token_beginning = i;
 					mode = searching_token;
@@ -207,8 +201,7 @@ Token * lexer(char * string) {
 					new_token.line_number = line_number;
 					new_token.column_number = column;
 
-					token_array = append_token(token_array, token_count, new_token);
-					token_count++;
+					token_array = append_token(token_array, &token_count, new_token);
 
 					token_beginning = i;
 					mode = searching_token;
@@ -234,8 +227,7 @@ Token * lexer(char * string) {
 					new_token.type = Identifier;
 					new_token.line_number = line_number;
 
-					token_array = append_token(token_array, token_count, new_token);
-					token_count++;
+					token_array = append_token(token_array, &token_count, new_token);
 
 					token_beginning = i;
 					mode = searching_token;
@@ -253,8 +245,7 @@ Token * lexer(char * string) {
 					new_token.type = Number;
 					new_token.line_number = line_number;
 
-					token_array = append_token(token_array, token_count, new_token);
-					token_count++;
+					token_array = append_token(token_array, &token_count, new_token);
 					
 					token_beginning = i;
 					mode = searching_token;
@@ -270,8 +261,7 @@ Token * lexer(char * string) {
 				new_token.line_number = line_number;
 				new_token.column_number = column;
 
-				token_array = append_token(token_array, token_count, new_token);
-				token_count++;
+				token_array = append_token(token_array, &token_count, new_token);
 
 				token_beginning = i;
 				mode = searching_token;
@@ -287,11 +277,10 @@ Token * lexer(char * string) {
 		new_token.beginning = string + token_beginning;
 		new_token.length = (unsigned short) (i - token_beginning);
 
-		token_array = append_token(token_array, token_count, new_token);
-		token_count += 1;
+		token_array = append_token(token_array, &token_count, new_token);
 	}
 	// append null token to mark the end of the array
-	token_array = append_token(token_array, token_count, NULL_TOKEN);
+	token_array = append_token(token_array, &token_count, NULL_TOKEN);
 
 	return token_array;
 }
