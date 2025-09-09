@@ -26,6 +26,17 @@ void free_type(Node_Type type) {
 			free(type.type_value.type_array_value->primitive_type);
 			free(type.type_value.type_array_value);
 			break;
+		
+		case type_func_type:
+			if (type.type_value.type_func_value->returns_value) {
+				free_type(type.type_value.type_func_value->return_type);
+			}
+			for (int i = 0; i < type.type_value.type_func_value->args_count; i++) {
+				free_type(type.type_value.type_func_value->args_type[i]);
+			}
+			free(type.type_value.type_func_value->args_type);
+			free(type.type_value.type_func_value);
+			break;
 	}
 }
 
@@ -48,6 +59,10 @@ void free_expresion(Node_Expresion expresion) {
 		case expresion_unary_operation_type:
 			free_expresion(expresion.expresion_value.expresion_unary_operation_value->expresion);
 			free(expresion.expresion_value.expresion_unary_operation_value);
+			break;
+
+		case expresion_func_call_type:
+			free(expresion.expresion_value.expresion_func_call_value->args);
 			break;
 
 		// nothing to free in this
@@ -104,6 +119,21 @@ void free_stmt(Node_Statement stmt) {
 		case while_type:
 			free_expresion(stmt.statement_value.while_node.condition);
 			free_scope(stmt.statement_value.while_node.scope);
+			break;
+		
+		case func_def_type:
+			free_type(stmt.statement_value.func_def.type);
+			free_scope(stmt.statement_value.func_def.scope);
+			break;
+		
+		case return_type:
+			if (stmt.statement_value.return_node.returns_value) {
+				free_expresion(stmt.statement_value.return_node.ret_value);
+			}
+			break;
+
+		case expresion_stmt_type:
+			free_expresion(stmt.statement_value.expresion_stmt);
 			break;
 	}
 }

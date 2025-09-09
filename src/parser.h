@@ -13,12 +13,14 @@ typedef struct Node_Type {
 	enum {
 		type_primitive_type,
 		type_ptr_type,
-		type_array_type
+		type_array_type,
+		type_func_type
 	} type_type;
 	union {
 		Token type_primitive_value;
 		struct Node_Type * type_ptr_value;
 		struct Node_Array_type * type_array_value;
+		struct Node_Func_type * type_func_value;
 	} type_value;
 } Node_Type;
 
@@ -32,6 +34,14 @@ typedef struct Node_Array {
 	struct Node_Expresion * elements;
 } Node_Array;
 
+typedef struct Node_Func_type {
+	bool returns_value;
+	Node_Type return_type;
+	int args_count;
+	Node_Type * args_type;
+	Token * args_name;
+} Node_Func_type;
+
 typedef struct Node_Expresion {
 	enum {
 		expresion_number_type,
@@ -39,6 +49,7 @@ typedef struct Node_Expresion {
 		expresion_binary_operation_type,
 		expresion_unary_operation_type,
 		expresion_array_type,
+		expresion_func_call_type,
 	} expresion_type;
 	union {
 		Token expresion_number_value;
@@ -46,6 +57,7 @@ typedef struct Node_Expresion {
 		struct Node_Binary_Operation * expresion_binary_operation_value;
 		struct Node_Unary_Operation * expresion_unary_operation_value;
 		struct Node_Array * expresion_array_value;
+		struct Node_Func_call * expresion_func_call_value;
 	} expresion_value;
 } Node_Expresion;
 
@@ -72,6 +84,12 @@ typedef struct Node_Unary_Operation {
 		unary_operation_deref_type
 	} operation_type;
 } Node_Unary_Operation;
+
+typedef struct Node_Func_call {
+	Token func_name;
+	int args_count;
+	Node_Expresion * args;
+} Node_Func_call;
 
 // TODO: implement the assgn dest in parsing as a general expression and later check that its valid in the checker
 typedef struct Assignment_Dest {
@@ -109,7 +127,6 @@ typedef struct Node_Var_assignment {
 	Node_Expresion value;
 } Node_Var_assignment;
 
-
 typedef struct Node_Scope {
 	struct Node_Statement * statements_node;
 	int statements_count;
@@ -127,6 +144,18 @@ typedef struct Node_While {
 	Node_Scope scope;
 } Node_While;
 
+typedef struct Node_Func_def {
+	Token name;
+	Node_Type type;
+	Node_Scope scope;
+} Node_Func_def;
+
+typedef struct Node_Return {
+	Token return_token;
+	bool returns_value;
+	Node_Expresion ret_value;
+} Node_Return;
+
 typedef struct Node_Statement {
 	union {
 		Node_Var_declaration var_declaration;
@@ -136,6 +165,9 @@ typedef struct Node_Statement {
 		Node_If if_node;
 		Node_Print print;
 		Node_While while_node;
+		Node_Func_def func_def;
+		Node_Return return_node;
+		Node_Expresion expresion_stmt;
 	} statement_value;
 	enum {
 		var_declaration_type,
@@ -144,7 +176,10 @@ typedef struct Node_Statement {
 		scope_type,
 		if_type,
 		print_type,
-		while_type
+		while_type,
+		func_def_type,
+		return_type,
+		expresion_stmt_type
 	} statement_type;
 } Node_Statement;
 
@@ -209,7 +244,7 @@ void D_print_assgn_destination(Assignment_Dest assgn_dest, int depth) {
 	}
 }
 
-void D_print_expresion(Node_Expresion expresion, int depth) {
+void D_print_expresion(const Node_Expresion expresion, int depth) {
 	switch (expresion.expresion_type) {
 		case expresion_number_type:
 			printf("%*sNode expression number:\n", depth, "");
@@ -259,11 +294,22 @@ void D_print_expresion(Node_Expresion expresion, int depth) {
 				D_print_expresion(expresion.expresion_value.expresion_array_value->elements[i], depth+1);
 			}
 			break;
+		
+		case expresion_func_call_type:
+			printf("%*sNode function call:\n", depth, "");
+			printf("%*sname: ", depth, "");
+			D_print_token(expresion.expresion_value.expresion_func_call_value->func_name);
+			depth++;
+			for (int i = 0; i < expresion.expresion_value.expresion_func_call_value->args_count; i++) {
+				printf("%*sargument idx: %d\n", depth, "", i);
+				D_print_expresion(expresion.expresion_value.expresion_func_call_value->args[i], depth+1);
+			}
+			break;
 
 	}
 }
 
-void D_print_type(Node_Type type, int depth) {
+void D_print_type(const Node_Type type, int depth) {
 	switch (type.type_type) {
 		case type_primitive_type:
 			printf("%*sNode type primitive:\n", depth, "");
@@ -294,10 +340,32 @@ void D_print_type(Node_Type type, int depth) {
 			depth++;
 			D_print_type(*type.type_value.type_array_value->primitive_type, depth);
 			break;
+		
+		case type_func_type:
+			printf("%*sNode type func:\n", depth, "");
+			depth++;
+
+			printf("%*sfn\n", depth, "");
+			depth++;
+
+			if (type.type_value.type_func_value->returns_value) {
+				D_print_type(type.type_value.type_func_value->return_type, depth);
+			}
+
+			printf("%*s(\n", depth, "");
+			for (int i = 0; i < type.type_value.type_func_value->args_count; i++) {
+				if (i) {
+					printf("%*s,\n", depth+1, "");
+				}
+				D_print_type(type.type_value.type_func_value->args_type[i], depth+1);
+			}
+			printf("%*s)\n", depth, "");
+
+			break;
 	}
 }
 
-void D_print_statement(Node_Statement stmt, int depth) {
+void D_print_statement(const Node_Statement stmt, int depth) {
 	switch (stmt.statement_type) {
 		case var_declaration_type:
 			Node_Var_declaration var_decl = stmt.statement_value.var_declaration;
@@ -400,6 +468,47 @@ void D_print_statement(Node_Statement stmt, int depth) {
 				putchar('\n');
 			}
 			break;
+		
+		case func_def_type:
+			Node_Func_def func_def = stmt.statement_value.func_def;
+			printf("%*sNode func def:\n", depth, "");
+			depth++;
+
+			printf("%*sfn\n", depth, "");
+			depth++;
+
+			if (func_def.type.type_value.type_func_value->returns_value) {
+				D_print_type(func_def.type.type_value.type_func_value->return_type, depth);
+			}
+
+			printf("%*s(\n", depth, "");
+			for (int i = 0; i < func_def.type.type_value.type_func_value->args_count; i++) {
+				if (i) {
+					printf("%*s,\n", depth+1, "");
+				}
+				printf("%*s", depth+1, "");
+				D_print_token(func_def.type.type_value.type_func_value->args_name[i]);
+
+				D_print_type(func_def.type.type_value.type_func_value->args_type[i], depth+1);
+			}
+			printf("%*s)\n", depth, "");
+			break;
+		
+		case return_type:
+			Node_Return return_node = stmt.statement_value.return_node;
+			printf("%*sNode return:\n", depth, "");
+			depth++;
+
+			D_print_expresion(return_node.ret_value, depth);
+			break;
+
+		case expresion_stmt_type:
+			Node_Expresion expr_stmt = stmt.statement_value.expresion_stmt;
+			printf("%*sNode expresion stmt:\n", depth, "");
+			depth++;
+
+			D_print_expresion(expr_stmt, depth);
+			break;
 	}
 }
 
@@ -500,6 +609,7 @@ static int get_unary_operation_precedence(Token operation) {
 
 
 // 'expr' must be the address of the first opening bracket in the expression
+// if expr_sz is -1 it means there is no bound to the amount of tokens to check forward
 // returns the offset off the matching closing bracket,
 //   if it couldnt find it prints an error an exits
 static int offset_of_match_bracket(const Token * expr, const int expr_sz) {
@@ -510,10 +620,10 @@ static int offset_of_match_bracket(const Token * expr, const int expr_sz) {
 	int depth = 1;
 	int offset = 1;
 	while (depth != 0) {
-		if (offset >= expr_sz) {
-			if (offset > 0) {
+		if (expr_sz != -1 && offset >= expr_sz) {
+			if (depth > 0) {
 				errorf("Line:%d, column:%d.  Error: expected a closing bracket\n", expr->line_number, expr->column_number);
-			} else if (offset < 0) {
+			} else if (depth < 0) {
 				errorf("Line:%d, column:%d.  Error: expected an opening bracket\n", expr->line_number, expr->column_number);
 			}
 		}
@@ -534,20 +644,21 @@ static int offset_of_match_bracket(const Token * expr, const int expr_sz) {
 }
 
 // 'expr' must be the address of the first opening square bracket in the expression
+// if expr_sz is -1 it means there is no bound to the amount of tokens to check forward
 // returns the offset off the matching closing square bracket,
 //   if it couldnt find it prints an error an exits
-static int offset_of_match_square_bracket(const Token * expr, const int exprsz) {
+static int offset_of_match_square_bracket(const Token * expr, const int expr_sz) {
 	if (expr->type != Square_bracket || *expr->beginning != '[') {
-		implementation_error("beginning of bracket expr is not open bracket");
+		implementation_error("beginning of square bracket expr is not open square bracket");
 	}
 
 	int depth = 1;
 	int offset = 1;
 	while (depth != 0) {
-		if (offset >= exprsz) {
-			if (offset > 0) {
+		if (expr_sz != -1 && offset >= expr_sz) {
+			if (depth > 0) {
 				errorf("Line:%d, column:%d.  Error: expected a closing square bracket\n", expr->line_number, expr->column_number);
-			} else if (offset < 0) {
+			} else if (depth < 0) {
 				errorf("Line:%d, column:%d.  Error: expected an opening square bracket\n", expr->line_number, expr->column_number);
 			}
 		}
@@ -589,13 +700,11 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
 		}
 	}
 	else {
-		if (expresion_beginning[0].type == Bracket && expresion_beginning[0].beginning[0] == '(' &&
-				offset_of_match_bracket(expresion_beginning, size) == size -1) {
+		if (compare_token_to_string(expresion_beginning[0], "(") && offset_of_match_bracket(expresion_beginning, size) == size -1) {
 			result = parse_expresion(&expresion_beginning[1], size -2); // substract to skip the '(' and the ending ')'
 			return result;
 		}
-		if (expresion_beginning[0].type == Square_bracket && expresion_beginning[0].beginning[0] == '[' &&
-				offset_of_match_square_bracket(expresion_beginning, size) == size -1) {
+		if (compare_token_to_string(expresion_beginning[0], "[") && offset_of_match_square_bracket(expresion_beginning, size) == size -1) {
 			result.expresion_type = expresion_array_type;
 			result.expresion_value.expresion_array_value = smalloc(sizeof(*result.expresion_value.expresion_array_value));
 			int elements_count = 0;
@@ -626,6 +735,11 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
 		}
 		Token operation;
 		int min_oper_preced = INT_MAX;
+		// if the operation to parse is a function call
+		bool is_func_call = false;
+		int function_beginnning = 0;
+		int args_beginning;
+		int args_size;
 		// if the operation to parse is an array access
 		bool is_operation_access = false;
 		int array_beginning;
@@ -642,17 +756,27 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
 		bool is_operation_uni = false;
 		int uni_expresion_beginning;
 		int uni_expresion_size;
-		// indicates if the last token was an operation, it begins being true. used for distinguishing binary and unary operations
+		// indicates if the last token was an operation, it begins being true.
 		bool was_last_op_or_null = true;
 		// find the beginning and size of the left and right side of the expresion
 		int i;
 		for (i = 0; i < size; i++) {
+			// detect function calls
+			if (compare_token_to_string(expresion_beginning[i], "(")) {
+				int paren_expr_size = offset_of_match_bracket(&expresion_beginning[i], size) -1;
+				if (!was_last_op_or_null && !is_operation_bin && !is_operation_uni) {
+					is_func_call = true;
+					args_beginning = i + 1;
+					args_size = paren_expr_size;
+					i += offset_of_match_bracket(&expresion_beginning[i], -1);
+				}
+			}
 			// if it finds a bracket skip it
-			if (expresion_beginning[i].type == Bracket && expresion_beginning[i].beginning[0] == '(') {
-				i += offset_of_match_bracket(&expresion_beginning[i], size);
+			if (compare_token_to_string(expresion_beginning[i], "(")) {
+				i += offset_of_match_bracket(&expresion_beginning[i], -1);
 			}
 			// if it finds a square bracket skip it
-			if (expresion_beginning[i].type == Square_bracket && expresion_beginning[i].beginning[0] == '[') {
+			if (compare_token_to_string(expresion_beginning[i], "[")) {
 				// detect array access operation
 				// it has lower precedence than binary and unary operation
 				if (!was_last_op_or_null && !is_operation_bin && !is_operation_uni) {
@@ -721,6 +845,39 @@ Node_Expresion parse_expresion(const Token * expresion_beginning, const int size
 			result.expresion_value.expresion_unary_operation_value = uni_operation;
 			result.expresion_type = expresion_unary_operation_type;
 		}
+		else if (is_func_call) {
+			Node_Func_call * func_call = smalloc(sizeof(Node_Func_call)); 
+			func_call->func_name = expresion_beginning[function_beginnning];
+			func_call->args_count = 0;
+			func_call->args = NULL;
+			int arg_expr_beginning = 0;
+			for (int i = 0; i < args_size; i++) {
+				// skip the brackets
+				if (expresion_beginning[args_beginning+i].type == Bracket && expresion_beginning[args_beginning+i].beginning[0] == '(') {
+					i += offset_of_match_bracket(&expresion_beginning[args_beginning+i], args_size);
+				}
+				if (expresion_beginning[args_beginning+i].type == Square_bracket && expresion_beginning[args_beginning+i].beginning[0] == '[') {
+					i += offset_of_match_square_bracket(&expresion_beginning[args_beginning+i], args_size);
+				}
+				// if it finds a comma parse the accummulated expresion and start accumulating another one
+				if (expresion_beginning[args_beginning+i].type == Comma) {
+					func_call->args_count += 1;
+					func_call->args = srealloc(func_call->args, sizeof(*func_call->args) * func_call->args_count);
+					func_call->args[func_call->args_count -1] = parse_expresion(&expresion_beginning[args_beginning+arg_expr_beginning], i - arg_expr_beginning);
+					//i++;
+					arg_expr_beginning = i +1;
+				}
+			}
+			// if there is are tokens left after the last expresion, also parse them and add them to the list
+			if (arg_expr_beginning < args_size && args_size > 0) {
+				func_call->args_count += 1;
+				func_call->args = srealloc(func_call->args, sizeof(*func_call->args) * func_call->args_count);
+				func_call->args[func_call->args_count -1] = parse_expresion(&expresion_beginning[args_beginning+arg_expr_beginning], args_size - arg_expr_beginning);
+			}
+
+			result.expresion_value.expresion_func_call_value = func_call;
+			result.expresion_type = expresion_func_call_type;
+		}
 		// if it did not found an operation report it
 		else {
 			errorf("Line:%d, column:%d.  Error: expected an operation in expresion\n", expresion_beginning->line_number, expresion_beginning->column_number);
@@ -759,7 +916,7 @@ static int next_asign_offset(const Token * beginning) {
 			errorf("Line:%d, column:%d.  Error: expected a '=' and an expression\n", token.line_number, token.column_number);
 		}
 		if (token.type == Curly_bracket) {
-			errorf("Line:%d, column:%d.  Error: expected a '=', an expression and a ':'\n", token.line_number, token.column_number);
+			errorf("Line:%d, column:%d.  Error: expected a '=', an expression and a ';'\n", token.line_number, token.column_number);
 		}
 	}
 	return offset;
@@ -840,8 +997,62 @@ Node_Type parse_type(const Token * type_beginning, const int type_sz) {
 		i += offset;
 		i += 1;
 	}
+	else if (compare_token_to_string(type_beginning[i], "fn")) {
+		Node_Func_type func_type;
+		type.token = type_beginning[i];
+		i += 1;
+
+		int paren_offset = -1;
+		for (int j = 0; j < type_sz; j++) {
+			// FIX: this is wrong if a function returns a function
+			//      do a counter that increases with 'fn' and decreases with its '(args, ...)'
+			//      until the counter is 0 then that parentheses is the one of the current function
+			if (compare_token_to_string(type_beginning[i+j], "(")) {
+				paren_offset = j;
+				break;
+			}
+		}
+		if (paren_offset == -1) {
+			errorf("Line:%d, column:%d.  Error: expected parentheses in function type\n", type_beginning[i].line_number, type_beginning[i].column_number);
+		}
+
+		func_type.returns_value = false;
+		if (paren_offset) {
+			func_type.returns_value = true;
+			func_type.return_type = parse_type(&type_beginning[i], paren_offset);
+		}
+		i += paren_offset;
+
+		int close_paren_offset = offset_of_match_bracket(&type_beginning[i], -1);
+		i += 1;
+		func_type.args_count = 0;
+		func_type.args_type = NULL;
+		func_type.args_name = NULL;		
+		int type_begin_idx = 0;
+		if (close_paren_offset -1 > 0) {
+			for (int j = 0; j < close_paren_offset; j++) {
+				if (type_beginning[i+j].type == Comma || compare_token_to_string(type_beginning[i+j], ")")) {
+					func_type.args_count++;
+					func_type.args_type = srealloc(func_type.args_type, sizeof(*func_type.args_type) * func_type.args_count);
+					func_type.args_type[func_type.args_count -1] = parse_type(&type_beginning[i+type_begin_idx], j-type_begin_idx);
+					type_begin_idx = j + 1;
+				} else if (compare_token_to_string(type_beginning[i+j], "(")) {
+					j += offset_of_match_bracket(&type_beginning[i+j], -1);
+				}
+			}
+		}
+		i += close_paren_offset;
+
+		if (i < type_sz) {
+			errorf("Line:%d, column:%d.  Error: unexpected token after function type\n", type_beginning[i].line_number, type_beginning[i].column_number);
+		}
+
+		type.type_type = type_func_type;
+		type.type_value.type_func_value = smalloc(sizeof(*type.type_value.type_func_value));
+		*type.type_value.type_func_value = func_type;
+	}
 	else {
-		errorf("Line:%d, column:%d.  Error: expected a type decorator\n", type_beginning->line_number, type_beginning->column_number);
+		errorf("Line:%d, column:%d.  Error: unkown type \"%t\"\n", type_beginning[i].line_number, type_beginning[i].column_number, type_beginning[i]);
 	}
 	return type;
 }
@@ -855,6 +1066,7 @@ Node_Scope parse_scope(const Token * tokens, const int tokens_count) {
 										 .type = End_of_file
 									   };
 	memcpy(new_tokens, tokens, tokens_count * sizeof(Token));
+	// TODO: dont do this hack
 	Node_Program temp_program = parser(new_tokens);
 	free(new_tokens);
 	Node_Scope scope;
@@ -970,15 +1182,12 @@ Node_If parse_if_at(const Token * tokens, int * idx) {
 	*idx += 1; // add 1 to skip the 'if'
 	const Token * expr = &tokens[*idx];
 	int expr_sz = *idx;
-	// TODO: finnish this or check that it is correct
 	while (!compare_token_to_string(tokens[*idx], "{")) {
 		if (tokens[*idx].type == End_of_file || tokens[*idx].type == Semi_colon) {
 			errorf("Line:%d, column:%d.  Error: expected a scope after 'if' statement\n", tokens[*idx].line_number, tokens[*idx].column_number);
 		}
 		*idx += 1;
 	}
-	/*// FIX: improve this loop, it is very unsafe
-	do { ++*idx; } while (tokens[*idx].type != Curly_bracket);*/
 	expr_sz = *idx - expr_sz;
 	Node_Expresion condition = parse_expresion(expr, expr_sz);
 
@@ -986,12 +1195,11 @@ Node_If parse_if_at(const Token * tokens, int * idx) {
 	Node_Scope scope = parse_scope_at(tokens, idx);
 	Node_If node_if = (Node_If) {.condition=condition, scope=scope};
 
+	node_if.has_else_block = false;
 	if (compare_token_to_string(tokens[*idx + 1], "else")) {
 		*idx += 2; // add 2 to skip the '}' and the 'else'
 		node_if.has_else_block = true;
 		node_if.else_block = parse_scope_at(tokens, idx);
-	} else {
-		node_if.has_else_block = false;
 	}
 	return node_if;
 }
@@ -1005,15 +1213,12 @@ Node_While parse_while_at(const Token * tokens, int * idx) {
 	*idx += 1; // add 1 to skip the 'while'
 	const Token * expr = &tokens[*idx];
 	int expr_sz = *idx;
-	// TODO: finnish this or check that it is correct
 	while (!compare_token_to_string(tokens[*idx], "{")) {
 		if (tokens[*idx].type == End_of_file || tokens[*idx].type == Semi_colon) {
 			errorf("Line:%d, column:%d.  Error: expected a scope after 'if' statement\n", tokens[*idx].line_number, tokens[*idx].column_number);
 		}
 		*idx += 1;
 	}
-	/*// FIX: improve this loop, it is very unsafe
-	do { ++*idx; } while (tokens[*idx].type != Curly_bracket);*/
 	expr_sz = *idx - expr_sz;
 	Node_Expresion condition = parse_expresion(expr, expr_sz);
 
@@ -1023,6 +1228,123 @@ Node_While parse_while_at(const Token * tokens, int * idx) {
 		.scope=scope
 	};
 	return node_while;
+}
+
+// parses function definition
+// tokens is the stream of tokens of the program
+// index is indicates the 'fn' token in the tokens
+// index will be updated to the corresponding '}'
+Node_Func_def parse_func_def_at(const Token * tokens, int * idx) {
+	*idx += 1; // skip the 'fn'
+	int paren_offset = 0;
+	for (int i = 0; !compare_token_to_string(tokens[*idx + i], "{"); i++) {
+		// FIX: improve this loop it is very unsafe
+		if (compare_token_to_string(tokens[*idx + i], "(")) {
+			paren_offset = i;
+			i += offset_of_match_bracket(&tokens[*idx + i], -1);
+		}
+	}
+
+	if (paren_offset < 1) {
+		errorf("Line:%d, column:%d.  Error: expected identifier in function definition\n");
+	}
+	const Token name = tokens[*idx + paren_offset -1];
+	if (name.type != Identifier) {
+		errorf("Line:%d, column:%d.  Error: expected the name of the function in function definition\n", tokens[*idx].line_number, tokens[*idx].column_number);
+	}
+	bool returns_value = false;
+	Node_Type ret_type = {0};
+	if (paren_offset -1 > 0) {
+		returns_value = true;
+		ret_type = parse_type(&tokens[*idx], paren_offset -1);
+	}
+	*idx += paren_offset;
+	int args_token_count = offset_of_match_bracket(&tokens[*idx], -1);
+	*idx += 1;
+	Node_Func_type func_type;
+	func_type.returns_value = returns_value;
+	func_type.return_type = ret_type;
+	func_type.args_count = 0;
+	func_type.args_type = malloc(func_type.args_count * sizeof(*func_type.args_type));
+	func_type.args_name = malloc(func_type.args_count * sizeof(*func_type.args_name));
+	int arg_name_begin_idx = 0;
+	int arg_type_begin_idx = 0;
+	if (args_token_count != 1) { // skip when there are no arguments
+		for (int i = 0 ; i < args_token_count; i++) {
+			if (compare_token_to_string(tokens[*idx+i], ":")) {
+				arg_type_begin_idx = i + 1;
+			} else if (compare_token_to_string(tokens[*idx+i], ")") || compare_token_to_string(tokens[*idx+i], ",")) {
+				func_type.args_count++;
+
+				if (arg_name_begin_idx == arg_type_begin_idx) {
+					errorf("Line:%d, column:%d.  Error: expected a variable declaration\n", tokens[*idx+i].line_number, tokens[*idx+i].column_number);
+				}
+				func_type.args_type = srealloc(func_type.args_type, func_type.args_count*sizeof(*func_type.args_type));
+				func_type.args_type[func_type.args_count -1] = parse_type(&tokens[*idx+arg_type_begin_idx], i-arg_type_begin_idx);
+
+				if (arg_type_begin_idx - arg_name_begin_idx - 1 != 1) {
+					errorf("Line:%d, column:%d.  Error: expected only one variable in declaration\n", tokens[*idx+i].line_number, tokens[*idx+i].column_number);
+				}
+				func_type.args_name = srealloc(func_type.args_name, func_type.args_count*sizeof(*func_type.args_name));
+				func_type.args_name[func_type.args_count -1] = tokens[*idx+arg_name_begin_idx];
+
+				if (compare_token_to_string(tokens[*idx+i], ")")) {
+					break;
+				} else {
+					arg_name_begin_idx = i + 1;
+					arg_type_begin_idx = i + 1;
+				}
+			} else if (compare_token_to_string(tokens[*idx+i], "(")) {
+				i += offset_of_match_bracket(&tokens[*idx+i], -1);
+			}
+
+		}
+	}
+	*idx += args_token_count;
+	Node_Scope scope = parse_scope_at(tokens, idx);
+
+	Node_Type type;
+	type.token=NULL_TOKEN,
+	type.type_type=type_func_type,
+	type.type_value.type_func_value = smalloc(sizeof(Node_Func_type));
+	*type.type_value.type_func_value = func_type;
+	Node_Func_def node_func_call = (Node_Func_def) {
+		.name=name,
+		.type=type,
+		.scope=scope
+	};
+	return node_func_call;
+}
+
+// parses return statement
+// tokens is the stream of tokens of the program
+// index is indicates the 'return' token in the tokens
+// index will be updated to the corresponding ';'
+Node_Return parse_return_at(const Token * tokens, int * idx) {
+	Node_Return node_return;
+	node_return.return_token = tokens[*idx];
+	*idx += 1; // skip the 'return'
+	node_return.returns_value = false;
+	if (tokens[*idx].type != Semi_colon) {
+		node_return.returns_value = true;
+		int expresion_beginning = *idx;
+		*idx += next_semicolon_offset(&tokens[*idx]);
+		int expresion_size = *idx - expresion_beginning;
+		node_return.ret_value = parse_expresion(&tokens[expresion_beginning], expresion_size);
+	}
+	return node_return;
+}
+
+// parses an expression as a statement
+// tokens is the stream of tokens of the program
+// index is indicates the beginning of the expression
+// index will be updated to the corresponding ';'
+Node_Expresion parse_expresion_at(const Token * tokens, int * idx) {
+	int expresion_beginning = *idx;
+	*idx += next_semicolon_offset(&tokens[*idx]);
+	int expresion_size = *idx - expresion_beginning;
+	Node_Expresion expresion = parse_expresion(&tokens[expresion_beginning], expresion_size);
+	return expresion;
 }
 
 // parses a statement
@@ -1050,9 +1372,17 @@ Node_Statement parse_statement_at(const Token * tokens, int * idx) {
 		stmt.statement_type = while_type;
 		stmt.statement_value.while_node = parse_while_at(tokens, idx);
 	}
+	else if (compare_token_to_string(tokens[*idx], "fn")) {
+		stmt.statement_type = func_def_type;
+		stmt.statement_value.func_def = parse_func_def_at(tokens, idx);
+	}
+	else if (compare_token_to_string(tokens[*idx], "return")) {
+		stmt.statement_type = return_type;
+		stmt.statement_value.return_node = parse_return_at(tokens, idx);
+	}
 	else {
 		bool stmt_found = false;
-		for (int i = 0; tokens[i].type != Semi_colon && tokens[i].type != End_of_file; i++) {
+		for (int i = 0; tokens[*idx+i].type != Semi_colon && tokens[*idx+i].type != End_of_file; i++) {
 			if (compare_token_to_string(tokens[*idx+i], "=")) {
 				stmt.statement_type = var_assignment_type;
 				stmt.statement_value.var_assignment = parse_var_assignment_at(tokens, idx);
@@ -1066,7 +1396,8 @@ Node_Statement parse_statement_at(const Token * tokens, int * idx) {
 			}
 		}
 		if (!stmt_found) {
-			errorf("Line:%d, column:%d.  Error: unkown statement type\n", tokens[*idx].line_number, tokens[*idx].column_number);
+			stmt.statement_type = expresion_stmt_type;
+			stmt.statement_value.expresion_stmt = parse_expresion_at(tokens, idx);
 		}
 	}
 	return stmt;

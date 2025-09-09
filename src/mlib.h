@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#define MAX(a, b) ((a)>(b) ? (a) : (b))
 
 // predefine symbols
 void * smalloc(size_t);

@@ -19,6 +19,8 @@ Operators:
   *     2
   /     2
   []    4
+  function call
+  ()    5
  The unary operator precedences are:
   &   3
   *   3
@@ -37,8 +39,9 @@ Types:
   u64 - 8 bytes - unsigned integer
 -There are also other types decorators that can be used along side a main type:
   ptr - 8 bytes - unsigned integer - a value that points to another data type
-  [N] - N * size of the type it contains - an array has a collection of elements of the same type
+  [N] - N * size of the type it contains - an array has a collection of elements of the same type,
    N can not be 0
+  fn Type (args_type) - the same size as a pointer - a function that returns a type or not and takes arguments separeted by commas 
 
 Variables:
 -Declaration:
@@ -85,7 +88,32 @@ Input/Output:
    "print" + expr + ";"
  Evaluates the expression and the lower 8 bits of the value will be printed using its ASCII representation.
 
-Exiting:
--Syntax:
- "exit" + expr + ";"
- When this statement is executed the program will end, returning the expr value as an exit code.
+-Exiting:
+ -Syntax:
+   "exit" + expr + ";"
+  When this statement is executed the program will end, returning the expr value as an exit code.
+
+Functions:
+Defining a funcion
+ -Syntax:
+   "fn" + (type) + "(" + arguments + ")"
+  Defines a function that returns a type or not and defines some arguments inside the scope of the function.
+  The syntax of defining the arguments is: arg_name + ":" + type.
+  and if there are multiple arguments they must be separeted by commas 
+
+Exiting a function:
+ To exit from a function the end of the function scope must be reached.
+ Or the function can be exited early by using the 'return' keyword and return a value or not
+ -Syntax:
+  "return" + (expr) + ";"
+ It can only be used inside a function
+
+Calling a function:
+ -Syntax:
+  func_name + "(" + args + ")"
+ The arguments are separeted by commas
+ It can return a value
+
+A Statement can also be just an expression:
+ -Syntax:
+  expr + ";"

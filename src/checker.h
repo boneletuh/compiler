@@ -15,6 +15,7 @@ typedef struct Symbol {
 
 typedef struct Symbols_scope {
 	int vars_count;
+	Token associated_var;
 	Symbol * vars;
 } Symbols_scope;
 
@@ -24,11 +25,14 @@ typedef struct Symbol_table {
 	Symbols_scope * scopes;
 } Symbol_table;
 
+bool is_checking_func_def = false;
+
 // returns if the 2 types are equal
 static bool compare_2_types(const Node_Type type1, const Node_Type type2) {
 	if (type1.type_type != type2.type_type) {
 		return false;
 	}
+	// TODO: do this with switch
 	// does not matter if it is type1.type_type or type2.type_type
 	if (type1.type_type == type_primitive_type) {
 		Token token_type1 = type1.type_value.type_primitive_value;
@@ -44,6 +48,26 @@ static bool compare_2_types(const Node_Type type1, const Node_Type type2) {
 		Node_Array_type tmp_type1 = *type1.type_value.type_array_value;
 		Node_Array_type tmp_type2 = *type2.type_value.type_array_value;
 		return compare_2_types(*tmp_type1.primitive_type, *tmp_type2.primitive_type) && compare_str_of_tokens(tmp_type1.elements_count, tmp_type2.elements_count);
+	}
+	else if (type1.type_type == type_func_type) {
+		Node_Func_type func_type1 = *type1.type_value.type_func_value;
+		Node_Func_type func_type2 = *type2.type_value.type_func_value;
+		if (func_type1.returns_value != func_type2.returns_value){
+			return false;
+		}
+		if (func_type1.returns_value) {
+			if (!compare_2_types(func_type1.return_type, func_type2.return_type)) {
+				return false;
+			}
+		}
+		if (func_type1.args_count != func_type2.args_count) {
+			return false;
+		}
+		for (int i = 0; i < func_type1.args_count; i++) {
+			if (!compare_2_types(func_type1.args_type[i], func_type2.args_type[i])) {
+				return false;
+			}
+		}
 	}
 	else {
 		implementation_error("checking this type of type not implemented");
@@ -73,7 +97,6 @@ static Symbol get_symbol_from_token(const Symbol_table vars, const Token token) 
 Node_Type get_type_of_expresion(const Symbol_table vars, const Node_Expresion expresion) {
 	switch (expresion.expresion_type) {
 		case expresion_number_type: {
-			// FIX: can not get the type of an integer literal so assume it is `u64`
 			Node_Type type;
 			type.token.beginning = smalloc(4); // FIX: this leaks memory
 			strcpy(type.token.beginning, "u64");
@@ -81,13 +104,11 @@ Node_Type get_type_of_expresion(const Symbol_table vars, const Node_Expresion ex
 			type.type_type = type_primitive_type;
 			type.type_value.type_primitive_value = type.token;
 			return type;
-			break;
 		}
 		case expresion_identifier_type: {
 			Token identifier = expresion.expresion_value.expresion_identifier_value;
 			Symbol symbol = get_symbol_from_token(vars, identifier);
 			return symbol.type;
-			break;
 		}
 		case expresion_unary_operation_type: {
 			Node_Unary_Operation uni_operation = *expresion.expresion_value.expresion_unary_operation_value;
@@ -108,7 +129,6 @@ Node_Type get_type_of_expresion(const Symbol_table vars, const Node_Expresion ex
 				implementation_error("can not get type of expression unkown unary operator");
 			}
 			return type;
-			break;
 		}
 		case expresion_binary_operation_type: {
 			Node_Binary_Operation bin_operation = *expresion.expresion_value.expresion_binary_operation_value;
@@ -127,7 +147,6 @@ Node_Type get_type_of_expresion(const Symbol_table vars, const Node_Expresion ex
 			}
 			// does not matter if its `lhs_type` or `rhs_type` 
 			return lhs_type;
-			break;
 		}
 		case expresion_array_type: {
 			Node_Type type;
@@ -137,16 +156,21 @@ Node_Type get_type_of_expresion(const Symbol_table vars, const Node_Expresion ex
 			type.type_value.type_array_value->primitive_type = smalloc(sizeof(*type.type_value.type_array_value->primitive_type));
 			*type.type_value.type_array_value->primitive_type = get_type_of_expresion(vars, expresion.expresion_value.expresion_array_value->elements[0]);
 			// FIX: convert the number to token in a more reasonable way
-			type.type_value.type_array_value->elements_count.beginning = smalloc(5);
-			type.type_value.type_array_value->elements_count.length = 5;
-			type.type_value.type_array_value->elements_count.beginning[0] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 10000 % 10;
-			type.type_value.type_array_value->elements_count.beginning[1] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 1000 % 10;
-			type.type_value.type_array_value->elements_count.beginning[2] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 100 % 10;
-			type.type_value.type_array_value->elements_count.beginning[3] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 10 % 10;
-			type.type_value.type_array_value->elements_count.beginning[4] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 1 % 10;
+			type.type_value.type_array_value->elements_count.beginning = smalloc(6);
+			type.type_value.type_array_value->elements_count.length = 6;
+			type.type_value.type_array_value->elements_count.beginning[0] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 100000 % 10;
+			type.type_value.type_array_value->elements_count.beginning[1] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 10000 % 10;
+			type.type_value.type_array_value->elements_count.beginning[2] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 1000 % 10;
+			type.type_value.type_array_value->elements_count.beginning[3] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 100 % 10;
+			type.type_value.type_array_value->elements_count.beginning[4] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 10 % 10;
+			type.type_value.type_array_value->elements_count.beginning[5] = '0' + expresion.expresion_value.expresion_array_value->elements_count / 1 % 10;
 			type.type_value.type_array_value->elements_count.type = Number;
 			return type;
-			break;
+		}
+		case expresion_func_call_type: {
+			Node_Type func_type = get_symbol_from_token(vars, expresion.expresion_value.expresion_func_call_value->func_name).type;
+			Node_Type func_return_type = func_type.type_value.type_func_value->return_type;
+			return func_return_type;
 		}
 	}
 	implementation_error("unkown type of expresion while trying to get its type");
@@ -240,6 +264,28 @@ static bool is_expresion_valid(const Symbol_table scopes, const Node_Expresion e
 				}
 			}
 			break;
+		
+		case expresion_func_call_type:
+			Node_Func_call func_call = *expresion.expresion_value.expresion_func_call_value;
+			if (!is_var_in_var_list(scopes, func_call.func_name)) {
+				D_print_token(func_call.func_name);
+				errorf("Line:%d, column:%d.  Error: undeclared function used\n", func_call.func_name.line_number, func_call.func_name.column_number);
+			}
+			Node_Func_type func_type = *get_symbol_from_token(scopes, func_call.func_name).type.type_value.type_func_value;
+			if (func_call.args_count != func_type.args_count) {
+				errorf("Line:%d, column:%d.  Error: expected %d arguments in function call but got %d\n", func_call.func_name.line_number, func_call.func_name.column_number, func_type.args_count, func_call.args_count);
+			}
+			for (int i = 0; i < func_call.args_count; i++) {
+				is_expresion_valid(scopes, func_call.args[i]);
+				// check that the argument passed matches the type defined in the function definition
+				Node_Type arg_type = get_type_of_expresion(scopes, func_call.args[i]);
+				if (!compare_2_types(func_type.args_type[i], arg_type)) {
+					// FIX: allow errorf() to print types in a nice way, so i would be like:
+					//      errorf("Line:%d, column:%d.  Error: arg %d has type %T but expected type %T\n", ...);
+					errorf("Line:%d, column:%d.  Error: arg %d does not match the type expected defined in the function \"%t\" declaration\n", func_call.func_name.line_number, func_call.func_name.column_number, i, func_call.func_name);
+				}
+			}
+			break;
 
 	}
 	return true;
@@ -254,27 +300,18 @@ static void append_var_to_var_list(const Symbol variable, Symbol_table * scopes)
 }
 
 // create a new empty scope and append it to the end of array of scopes
-static void create_scope(Symbol_table * scopes) {
+static void create_scope(Symbol_table * scopes, const Token associated_var) {
 	scopes->scopes_count++;
 	scopes->scopes = srealloc(scopes->scopes, scopes->scopes_count * sizeof(*scopes->scopes));
 	scopes->scopes[scopes->scopes_count -1].vars_count = 0;
 	scopes->scopes[scopes->scopes_count -1].vars = smalloc(scopes->scopes[scopes->scopes_count -1].vars_count * sizeof(*scopes->scopes[scopes->scopes_count -1].vars));
+	scopes->scopes[scopes->scopes_count -1].associated_var = associated_var;
 }
 
-// create a copy of the scopes and its variables
-static Symbol_table copy_symbol_table(Symbol_table scopes) {
-	Symbol_table result;
-	result.scopes_count = scopes.scopes_count;
-	result.scopes = smalloc(scopes.scopes_count * sizeof(*scopes.scopes));
-	for (int i = 0; i < scopes.scopes_count; i++) {
-		result.scopes[i].vars_count = scopes.scopes[i].vars_count;
-		result.scopes[i].vars = smalloc(result.scopes[i].vars_count * sizeof(*result.scopes[i].vars));
-		// TODO; use memcpy() here
-		for (int j = 0; j < result.scopes[i].vars_count; j++) {
-			result.scopes[i].vars[j] = scopes.scopes[i].vars[j];
-		}
-	}
-	return result;
+// remove the last scope from the array of scopes 
+static void remove_scope(Symbol_table * scopes) {
+	scopes->scopes_count--;
+	scopes->scopes = srealloc(scopes->scopes, scopes->scopes_count * sizeof(*scopes->scopes));
 }
 
 // free the memory of the scopes
@@ -283,6 +320,17 @@ static void free_symbol_table(Symbol_table variables) {
 		free(variables.scopes[i].vars);
 	}
 	free(variables.scopes);
+}
+
+// get the last associated var to the current scope
+Token get_scope_associated_var(const Symbol_table scopes) {
+	Token associated_var = NULL_TOKEN;
+	for (int i = 0; i < scopes.scopes_count; i ++) {
+		if (!compare_str_of_tokens(scopes.scopes[i].associated_var,  NULL_TOKEN)) {
+			associated_var = scopes.scopes[i].associated_var;
+		}
+	}
+	return associated_var;
 }
 
 // check if a statement is valid, if it is not, report it and halt
@@ -333,7 +381,7 @@ void check_statement(Symbol_table * variables, const Node_Statement stmt) {
 					// check that when assigning to the var there is not another var with the same name
 					Token variable = var_assgn.destination.destination_value.var_name;
 					if (!is_var_in_var_list(*variables, variable)) {
-						errorf("Line:%d, column:%d.  Error: variable has not been declared before.\n", variable.line_number, variable.column_number);
+						errorf("Line:%d, column:%d.  Error: can not assign to a variable that has not been declared before.\n", variable.line_number, variable.column_number);
 					}
 					// check that the types of the variable and the expression match
 					Node_Type var_type = get_symbol_from_token(*variables, variable).type;
@@ -349,7 +397,7 @@ void check_statement(Symbol_table * variables, const Node_Statement stmt) {
 					// check that the types of the destination and the expression match
 					Node_Type dest_type = get_type_of_expresion(*variables, dest_expresion);
 					if (dest_type.type_type != type_ptr_type) {
-						error("destination in pointer assgnment has to be a pointer");
+						error("destination in pointer assignment has to be a pointer");
 					}
 					if (!compare_2_types(*dest_type.type_value.type_ptr_value, expr_type)) {
 						error("the type of the right expression and the left expression does not match");
@@ -379,36 +427,101 @@ void check_statement(Symbol_table * variables, const Node_Statement stmt) {
 			break;
 		}
 		case scope_type: {
-			Symbol_table scope_vars = copy_symbol_table(*variables);
+			create_scope(variables, NULL_TOKEN);
 			for (int i = 0; i < stmt.statement_value.scope.statements_count; i++) {
-				check_statement(&scope_vars, stmt.statement_value.scope.statements_node[i]);
+				check_statement(variables, stmt.statement_value.scope.statements_node[i]);
 			}
-			free_symbol_table(scope_vars);
+			remove_scope(variables);
 			break;
 		}
 		case if_type: {
 			Node_Expresion condition = stmt.statement_value.if_node.condition;
 			is_expresion_valid(*variables, condition);
-			Symbol_table scope_vars = copy_symbol_table(*variables);
+			Symbol_table * scope_vars = variables;
+			create_scope(scope_vars, NULL_TOKEN);
 			for (int i = 0; i < stmt.statement_value.if_node.scope.statements_count; i++) {
-				check_statement(&scope_vars, stmt.statement_value.if_node.scope.statements_node[i]);
+				check_statement(scope_vars, stmt.statement_value.if_node.scope.statements_node[i]);
 			}
+			remove_scope(scope_vars);
 			if (stmt.statement_value.if_node.has_else_block) {
+				create_scope(scope_vars, NULL_TOKEN);
 				for (int i = 0; i < stmt.statement_value.if_node.else_block.statements_count; i++) {
-					check_statement(&scope_vars, stmt.statement_value.if_node.else_block.statements_node[i]);
+					check_statement(scope_vars, stmt.statement_value.if_node.else_block.statements_node[i]);
 				}
+				remove_scope(scope_vars);
 			}
-			free_symbol_table(scope_vars);
 			break;
 		}
 		case while_type: {
 			Node_Expresion condition = stmt.statement_value.while_node.condition;
 			is_expresion_valid(*variables, condition);
-			Symbol_table scope_vars = copy_symbol_table(*variables);
+			create_scope(variables, NULL_TOKEN);
 			for (int i = 0; i < stmt.statement_value.while_node.scope.statements_count; i++) {
-				check_statement(&scope_vars, stmt.statement_value.while_node.scope.statements_node[i]);
+				check_statement(variables, stmt.statement_value.while_node.scope.statements_node[i]);
 			}
-			free_symbol_table(scope_vars);
+			remove_scope(variables);
+			break;
+		}
+		case func_def_type: {
+			Symbol func = {
+				.value=stmt.statement_value.func_def.name,
+				.type=stmt.statement_value.func_def.type
+			};
+			if (is_checking_func_def || variables->scopes_count > 1) {
+				errorf("Line:%d, column:%d.  Error: can only declare a function in the global scope.\n", func.value.line_number, func.value.column_number);
+			}
+			if (is_var_in_var_list(*variables, func.value)) {
+				const Token previous_var = get_symbol_from_token(*variables, func.value).value;
+				errorf("Line:%d, column:%d.  Error: symbol with name \"%t\" already declared in line:%d, column:%d.\n", func.value.line_number, func.value.column_number, func.value, previous_var.line_number, previous_var.column_number);
+			}
+			else {
+				append_var_to_var_list(func, variables);
+			}
+			create_scope(variables, func.value);
+			append_var_to_var_list(func, variables);
+			for (int i = 0; i < stmt.statement_value.func_def.type.type_value.type_func_value->args_count; i++) {
+				Symbol arg = {
+					.value=stmt.statement_value.func_def.type.type_value.type_func_value->args_name[i],
+					.type=stmt.statement_value.func_def.type.type_value.type_func_value->args_type[i]
+				};
+				if (is_var_in_var_list(*variables, arg.value)) {
+					const Token previous_sym = get_symbol_from_token(*variables, arg.value).value;
+					errorf("Line:%d, column:%d.  Error: symbol with name \"%t\" already declared in line:%d, column:%d.\n", arg.value.line_number, arg.value.column_number, arg.value, previous_sym.line_number, previous_sym.column_number);
+				}
+				append_var_to_var_list(arg, variables);
+			}
+			is_checking_func_def = true;
+			for (int i = 0; i < stmt.statement_value.func_def.scope.statements_count; i++) {
+				check_statement(variables, stmt.statement_value.func_def.scope.statements_node[i]);
+			}
+			is_checking_func_def = false;
+			remove_scope(variables);
+			break;
+		}
+		case return_type: {
+			Node_Return return_node = stmt.statement_value.return_node;
+			if (!is_checking_func_def) {
+				errorf("Line:%d, column:%d.  Error: can only return from inside a function.\n", return_node.return_token.line_number, return_node.return_token.column_number);
+			}
+			if (return_node.returns_value) {
+				is_expresion_valid(*variables, return_node.ret_value);
+			}
+			Node_Type current_func_type = get_symbol_from_token(*variables, get_scope_associated_var(*variables)).type;
+			bool types_match = true;
+			if (current_func_type.type_value.type_func_value->returns_value != return_node.returns_value) {
+				types_match = false;
+			}
+			if (types_match && return_node.returns_value) {
+				types_match = compare_2_types(get_type_of_expresion(*variables, return_node.ret_value), current_func_type.type_value.type_func_value->return_type);
+			}
+			if (!types_match) {
+				errorf("Line:%d, column:%d.  Error: the returned type does not match the expected type to be returned.\n", return_node.return_token.line_number, return_node.return_token.column_number);
+			}
+			break;
+		}
+		case expresion_stmt_type: {
+			Node_Expresion expresion = stmt.statement_value.expresion_stmt;
+			is_expresion_valid(*variables, expresion);
 			break;
 		}
 	}
@@ -419,7 +532,7 @@ bool is_valid_program(Node_Program program) {
 	Symbol_table scopes;
 	scopes.scopes_count = 0;
 	scopes.scopes = malloc(scopes.scopes_count * sizeof(Symbols_scope));
-	create_scope(&scopes); // create the first global scope
+	create_scope(&scopes, NULL_TOKEN); // create the first global scope
 	// check each statement correctness
 	for (int i = 0; i < program.statements_count; i++) {
 		Node_Statement statement = program.statements_node[i];
